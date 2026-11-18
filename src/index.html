@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>環境部碳足跡查詢系統 | CFP_P_02 &amp; CFP_P_01</title>
+  <meta name="description" content="環境部環境資料開放平臺碳足跡排放係數 (CFP_P_02) 與台灣產品碳足跡資訊 (CFP_P_01) 即時查詢與試算系統" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- 頂部導覽與資料狀態列 -->
+    <header class="top-header">
+      <div class="container header-inner">
+        <div class="brand">
+          <div class="brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+              <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+            </svg>
+          </div>
+          <div>
+            <h1>環境部碳足跡查詢系統</h1>
+            <p class="subtitle">MOENV Carbon Footprint Open Data Explorer</p>
+          </div>
+        </div>
+
+        <div class="status-bar" aria-live="polite">
+          <div class="status-pill">
+            <span class="status-label">排放係數 (CFP_P_02)</span>
+            <strong id="stat-factors-count" class="mono">--</strong>
+          </div>
+          <div class="status-pill">
+            <span class="status-label">碳標籤產品 (CFP_P_01)</span>
+            <strong id="stat-products-count" class="mono">--</strong>
+          </div>
+          <div class="status-pill">
+            <span class="status-label">最後同步時間</span>
+            <strong id="stat-last-sync" class="mono">載入中...</strong>
+          </div>
+          <button id="btn-open-changelog" type="button" class="btn btn-outline btn-sm">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 8v4l3 3" />
+              <circle cx="12" cy="12" r="9" />
+            </svg>
+            更新紀錄
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主內容區 -->
+    <main class="container main-content">
+      <!-- 雙分頁切換 -->
+      <nav class="tabs-nav" role="tablist" aria-label="資料集查詢分頁">
+        <button
+          id="tab-btn-factors"
+          class="tab-btn active"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="panel-factors"
+        >
+          <span class="tab-title">排放係數查詢</span>
+          <span class="tab-badge">CFP_P_02</span>
+        </button>
+        <button
+          id="tab-btn-products"
+          class="tab-btn"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="panel-products"
+        >
+          <span class="tab-title">碳標籤產品查詢</span>
+          <span class="tab-badge">CFP_P_01</span>
+        </button>
+      </nav>
+
+      <!-- 分頁一：排放係數查詢 (CFP_P_02) -->
+      <section id="panel-factors" class="tab-panel active" role="tabpanel" aria-labelledby="tab-btn-factors">
+        <!-- 內建簡易試算器 -->
+        <section class="card calculator-card" aria-label="碳排放量簡易試算器">
+          <div class="calculator-header">
+            <div class="calculator-title-group">
+              <span class="calc-badge">簡易試算器</span>
+              <h2 id="calc-selected-name">請由下方列表點選「試算」或直接輸入自訂係數</h2>
+            </div>
+            <button id="btn-calc-reset" type="button" class="btn btn-ghost btn-xs">重設試算</button>
+          </div>
+          <div class="calculator-grid">
+            <div class="calc-field">
+              <label for="calc-quantity">活動數據數量</label>
+              <div class="input-with-unit">
+                <input
+                  id="calc-quantity"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value="1"
+                  placeholder="請輸入數量"
+                />
+                <span id="calc-unit-label" class="unit-addon">單位</span>
+              </div>
+            </div>
+            <div class="calc-operator" aria-hidden="true">×</div>
+            <div class="calc-field">
+              <label for="calc-coe">排放係數 (kgCO₂e / 單位)</label>
+              <input
+                id="calc-coe"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="例如 0.494"
+              />
+            </div>
+            <div class="calc-operator" aria-hidden="true">=</div>
+            <div class="calc-results">
+              <div class="calc-result-box primary">
+                <span class="calc-result-label">碳排放量 (kgCO₂e)</span>
+                <strong id="calc-result-kg" class="mono">0</strong>
+              </div>
+              <div class="calc-result-box">
+                <span class="calc-result-label">公噸當量 (tCO₂e)</span>
+                <strong id="calc-result-ton" class="mono">0</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 搜尋與篩選控制列 -->
+        <section class="card filter-card" aria-label="排放係數搜尋與篩選">
+          <div class="filter-row-search">
+            <div class="search-input-wrap">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                id="factors-search"
+                type="search"
+                placeholder="搜尋係數名稱或建置單位（支援多關鍵字，例如：電力 2022、環境部）"
+                autocomplete="off"
+              />
+            </div>
+            <button id="factors-reset-filters" type="button" class="btn btn-outline">清除篩選</button>
+          </div>
+
+          <div class="filter-grid-4">
+            <div class="filter-field">
+              <label for="filter-year">公告年份</label>
+              <select id="filter-year">
+                <option value="">全部年份</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="filter-unit">宣告單位</label>
+              <select id="filter-unit">
+                <option value="">全部單位</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="filter-iso">ISO 14064-1 範疇三</label>
+              <select id="filter-iso">
+                <option value="">全部類別</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="filter-ghg">GHG Protocol 範疇三</label>
+              <select id="filter-ghg">
+                <option value="">全部類別</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- 結果工具列 -->
+        <div class="results-toolbar">
+          <p id="factors-summary" class="results-summary">資料載入中...</p>
+          <div class="page-size-wrap">
+            <label for="factors-page-size">每頁顯示</label>
+            <select id="factors-page-size">
+              <option value="20" selected>20 筆</option>
+              <option value="50">50 筆</option>
+              <option value="100">100 筆</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 排放係數資料呈現區 -->
+        <div id="factors-results" class="results-container"></div>
+
+        <!-- 分頁控制 -->
+        <nav id="factors-pagination" class="pagination" aria-label="排放係數分頁"></nav>
+      </section>
+
+      <!-- 分頁二：碳標籤產品查詢 (CFP_P_01) -->
+      <section id="panel-products" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-products" hidden>
+        <section class="card filter-card" aria-label="碳標籤產品搜尋與篩選">
+          <div class="filter-row-search">
+            <div class="search-input-wrap">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                id="products-search"
+                type="search"
+                placeholder="搜尋產品名稱、公司名稱、證書編號或統一編號（例如：2101507001、85006125）"
+                autocomplete="off"
+              />
+            </div>
+            <button id="products-reset-filters" type="button" class="btn btn-outline">清除篩選</button>
+          </div>
+
+          <div class="filter-grid-2">
+            <div class="filter-field">
+              <label for="filter-validity">證書有效狀態</label>
+              <select id="filter-validity">
+                <option value="">全部狀態</option>
+                <option value="valid">有效期間內</option>
+                <option value="expiring">即將到期（30天內）</option>
+                <option value="expired">已到期</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="sort-expired">依到期日排序</label>
+              <select id="sort-expired">
+                <option value="default">預設順序</option>
+                <option value="asc">到期日：由近到遠（最快到期在前）</option>
+                <option value="desc">到期日：由遠到近（最新效期在前）</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <div class="results-toolbar">
+          <p id="products-summary" class="results-summary">資料載入中...</p>
+          <div class="page-size-wrap">
+            <label for="products-page-size">每頁顯示</label>
+            <select id="products-page-size">
+              <option value="20" selected>20 筆</option>
+              <option value="50">50 筆</option>
+              <option value="100">100 筆</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="products-results" class="results-container"></div>
+
+        <nav id="products-pagination" class="pagination" aria-label="碳標籤產品分頁"></nav>
+      </section>
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>
+          資料來源：<a href="https://data.moenv.gov.tw/" target="_blank" rel="noopener noreferrer">環境部環境資料開放平臺</a>
+          （CFP_P_02 碳足跡排放係數、CFP_P_01 台灣產品碳足跡資訊）
+        </p>
+        <p class="footer-note">本系統為純靜態前端查詢工具，每週自動同步最新開放資料。</p>
+      </div>
+    </footer>
+  </div>
+
+  <!-- 更新紀錄彈窗 -->
+  <div id="changelog-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="changelog-modal-title" hidden>
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 id="changelog-modal-title">資料集同步更新紀錄</h2>
+        <button id="btn-close-changelog" type="button" class="btn-icon-close" aria-label="關閉視窗">&times;</button>
+      </div>
+      <div id="changelog-body" class="modal-body">
+        <p class="empty-state-text">載入紀錄中...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 通知 -->
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
