@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   sync:
@@ -27,6 +28,7 @@ jobs:
         run: python scripts/sync_cfp.py
 
       - name: Commit and push if data changed
+        id: commit
         run: |
           if [ -n "$(git status --porcelain data/)" ]; then
             git config user.name "github-actions[bot]"
@@ -34,6 +36,44 @@ jobs:
             git add data/
             git commit -m "chore(data): sync MOENV CFP_P_01 & CFP_P_02 datasets"
             git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "No changes in data/."
           fi
+
+      - name: Notify via GitHub Issue when data changed
+        if: steps.commit.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const changelog = JSON.parse(fs.readFileSync('data/changelog.json', 'utf8'));
+            const latest = changelog[0];
+            const dateStr = (latest.synced_at || new Date().toISOString()).slice(0, 10);
+
+            const formatSection = (title, item) => {
+              if (!item || !item.changed) return `### ${title}\n- 無異動（共 ${item ? item.total_count : 0} 筆）\n`;
+              const lines = [
+                `### ${title}（目前共 ${item.total_count} 筆）`,
+                `- 新增：${item.added_count} 筆${item.added_labels?.length ? '（' + item.added_labels.slice(0, 10).join('、') + (item.added_labels.length > 10 ? '…' : '') + '）' : ''}`,
+                `- 更新：${item.updated_count} 筆${item.updated_labels?.length ? '（' + item.updated_labels.slice(0, 10).join('、') + (item.updated_labels.length > 10 ? '…' : '') + '）' : ''}`,
+                `- 移除：${item.removed_count} 筆${item.removed_labels?.length ? '（' + item.removed_labels.slice(0, 10).join('、') + (item.removed_labels.length > 10 ? '…' : '') + '）' : ''}`,
+              ];
+              return lines.join('\n') + '\n';
+            };
+
+            const body = [
+              `環境部開放資料已偵測到更新，並自動推送至 \`main\` 分支（同步時間：\`${latest.synced_at}\`）。`,
+              '',
+              formatSection('CFP_P_02 碳足跡排放係數', latest.CFP_P_02),
+              formatSection('CFP_P_01 台灣產品碳足跡資訊', latest.CFP_P_01),
+              `完整異動紀錄請見 \`data/changelog.json\`。`,
+            ].join('\n');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[資料更新] 環境部碳足跡資料異動通知 (${dateStr})`,
+              body,
+            });
