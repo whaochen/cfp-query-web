@@ -621,15 +621,25 @@ function renderChangelogModal(entries) {
     .join("");
 }
 
+async function fetchJson(path) {
+  const requestUrl = new URL(path, window.location.href).href;
+  const res = await fetch(requestUrl);
+  if (!res.ok) {
+    const finalUrl = res.url || requestUrl;
+    console.error(`資料請求失敗: ${finalUrl} (HTTP ${res.status} ${res.statusText})`);
+    throw new Error(`無法載入 ${finalUrl} (HTTP ${res.status})`);
+  }
+  return res.json();
+}
+
 async function openChangelogModal() {
   els.changelogModal.hidden = false;
   if (!state.changelog) {
     try {
-      const res = await fetch("./data/changelog.json");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      state.changelog = await res.json();
-    } catch {
-      els.changelogBody.innerHTML = `<p class="empty-state-text">無法載入 changelog.json，請稍後再試。</p>`;
+      state.changelog = await fetchJson("/data/changelog.json");
+    } catch (err) {
+      console.error("載入更新紀錄失敗:", err);
+      els.changelogBody.innerHTML = `<p class="empty-state-text">無法載入 /data/changelog.json，請稍後再試。</p>`;
       return;
     }
   }
@@ -761,20 +771,10 @@ function bindEvents() {
 async function init() {
   bindEvents();
   try {
-    const [metaRes, factorsRes, productsRes] = await Promise.all([
-      fetch("./data/metadata.json"),
-      fetch("./data/cfp_factors.json"),
-      fetch("./data/cfp_products.json"),
-    ]);
-
-    if (!metaRes.ok || !factorsRes.ok || !productsRes.ok) {
-      throw new Error("資料載入失敗");
-    }
-
     const [metadata, factorsRaw, productsRaw] = await Promise.all([
-      metaRes.json(),
-      factorsRes.json(),
-      productsRes.json(),
+      fetchJson("/data/metadata.json"),
+      fetchJson("/data/cfp_factors.json"),
+      fetchJson("/data/cfp_products.json"),
     ]);
 
     state.metadata = metadata;
