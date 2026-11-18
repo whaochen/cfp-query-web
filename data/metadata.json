@@ -1,0 +1,21 @@
+{
+  "last_checked_at": "2026-11-18T22:37:44+08:00",
+  "datasets": {
+    "CFP_P_02": {
+      "title": "碳足跡排放係數",
+      "source_url": "https://data.moenv.gov.tw/dataset/detail/CFP_P_02",
+      "file": "cfp_factors.json",
+      "total_count": 1188,
+      "last_synced_at": "2026-11-18T22:37:44+08:00",
+      "sha256": "0d112fccba0c6aced90b6e90fc56705fdac831433dc57ad474a25faecb28b3d9"
+    },
+    "CFP_P_01": {
+      "title": "台灣產品碳足跡資訊",
+      "source_url": "https://data.moenv.gov.tw/dataset/detail/CFP_P_01",
+      "file": "cfp_products.json",
+      "total_count": 953,
+      "last_synced_at": "2026-11-18T22:37:44+08:00",
+      "sha256": "f53c1d08be87878c9a6fa4a3ea14e6870098eb35d3390426acb69b3300f53f08"
+    }
+  }
+}
