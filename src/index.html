@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=20261119-2" />
+  <link rel="stylesheet" href="./styles.css?v=20261119-3" />
 </head>
 <body>
   <div class="app-shell">
@@ -209,7 +209,7 @@
               <input
                 id="products-search"
                 type="search"
-                placeholder="搜尋產品名稱、公司名稱、證書編號或統一編號（例如：2101507001、85006125）"
+                placeholder="模糊搜尋產品名稱、公司名稱、證書編號或統編（空白分隔多關鍵字，如：鮮乳 21015）"
                 autocomplete="off"
               />
             </div>
@@ -280,10 +280,21 @@
     </div>
   </div>
 
+  <!-- 細部資料檢視彈窗 -->
+  <div id="detail-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title" hidden>
+    <div class="modal-dialog modal-dialog-lg">
+      <div class="modal-header">
+        <h2 id="detail-modal-title">細部資料</h2>
+        <button id="btn-close-detail" type="button" class="btn-icon-close" aria-label="關閉視窗">&times;</button>
+      </div>
+      <div id="detail-modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
   <!-- Toast 通知 -->
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
-  <script type="module" src="./app.js?v=20261119-2"></script>
+  <script type="module" src="./app.js?v=20261119-3"></script>
 </body>
 </html>

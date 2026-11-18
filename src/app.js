@@ -2,6 +2,8 @@ const state = {
   activeTab: "factors",
   metadata: null,
   changelog: null,
+  details: {},
+  detailsNormalizedMap: new Map(),
   factors: [],
   products: [],
   factorsFuse: null,
@@ -67,6 +69,11 @@ const els = {
   btnCloseChangelog: document.getElementById("btn-close-changelog"),
   changelogModal: document.getElementById("changelog-modal"),
   changelogBody: document.getElementById("changelog-body"),
+
+  detailModal: document.getElementById("detail-modal"),
+  detailModalTitle: document.getElementById("detail-modal-title"),
+  detailModalBody: document.getElementById("detail-modal-body"),
+  btnCloseDetail: document.getElementById("btn-close-detail"),
 
   toast: document.getElementById("toast"),
 };
@@ -400,7 +407,9 @@ function renderFactors() {
       return `
         <tr>
           <td>
-            <div class="cell-title">${escapeHtml(item.name)}</div>
+            <div class="cell-title">
+              <button type="button" class="cell-title-btn" data-action="detail-factor" data-id="${escapeHtml(item.id)}">${escapeHtml(item.name)}</button>
+            </div>
             <div class="cell-sub">${escapeHtml(item.department || "未提供單位")}</div>
           </td>
           <td>
@@ -411,7 +420,8 @@ function renderFactors() {
           <td>${scopeHtml}</td>
           <td>
             <div class="actions-cell">
-              <button type="button" class="btn btn-outline btn-xs" data-action="copy-coe" data-id="${escapeHtml(item.id)}">複製數值</button>
+              <button type="button" class="btn btn-outline btn-xs" data-action="detail-factor" data-id="${escapeHtml(item.id)}">細部資料</button>
+              <button type="button" class="btn btn-outline btn-xs" data-action="copy-coe" data-id="${escapeHtml(item.id)}">複製</button>
               <button type="button" class="btn btn-soft btn-xs" data-action="calc-coe" data-id="${escapeHtml(item.id)}">試算</button>
             </div>
           </td>
@@ -449,6 +459,7 @@ function renderFactors() {
           </div>
           ${scopeJoined ? `<div class="tag-list" style="margin-bottom: 10px;">${scopeJoined}</div>` : ""}
           <div class="item-card-footer">
+            <button type="button" class="btn btn-outline btn-xs" data-action="detail-factor" data-id="${escapeHtml(item.id)}">細部資料</button>
             <button type="button" class="btn btn-outline btn-xs" data-action="copy-coe" data-id="${escapeHtml(item.id)}">複製數值</button>
             <button type="button" class="btn btn-soft btn-xs" data-action="calc-coe" data-id="${escapeHtml(item.id)}">帶入試算器</button>
           </div>
@@ -538,7 +549,9 @@ function renderProducts() {
       return `
         <tr>
           <td>
-            <div class="cell-title">${escapeHtml(item.product_name)}</div>
+            <div class="cell-title">
+              <button type="button" class="cell-title-btn" data-action="detail-product" data-row-id="${escapeHtml(item._rowId)}">${escapeHtml(item.product_name)}</button>
+            </div>
             <div class="cell-sub">${escapeHtml(item.company_name || "--")}</div>
           </td>
           <td>
@@ -552,6 +565,11 @@ function renderProducts() {
           <td>
             <div class="mono" style="margin-bottom: 4px;">${escapeHtml(item.expired_date || "--")}</div>
             <span class="badge ${item._validity.badgeClass}">${escapeHtml(item._validity.label)}</span>
+          </td>
+          <td>
+            <div class="actions-cell">
+              <button type="button" class="btn btn-outline btn-xs" data-action="detail-product" data-row-id="${escapeHtml(item._rowId)}">細部資料</button>
+            </div>
           </td>
         </tr>
       `;
@@ -587,12 +605,15 @@ function renderProducts() {
               <span>證書編號</span>
               <span class="mono">${escapeHtml(item.cfpl_code || "--")}</span>
             </div>
-            <div class="meta-pair">
-              <span>統一編號 / 到期日</span>
-              <span class="mono">${escapeHtml(item.ban || "--")} ・ ${escapeHtml(item.expired_date || "--")}</span>
+              <div class="meta-pair">
+                <span>統一編號 / 到期日</span>
+                <span class="mono">${escapeHtml(item.ban || "--")} ・ ${escapeHtml(item.expired_date || "--")}</span>
+              </div>
             </div>
-          </div>
-        </article>
+            <div class="item-card-footer">
+              <button type="button" class="btn btn-outline btn-xs" data-action="detail-product" data-row-id="${escapeHtml(item._rowId)}">細部資料</button>
+            </div>
+          </article>
       `;
     })
     .join("");
@@ -602,10 +623,11 @@ function renderProducts() {
       <table class="data-table">
         <thead>
           <tr>
-            <th style="width: 34%;">產品與廠商名稱</th>
-            <th style="width: 20%;">證書與統一編號</th>
-            <th style="width: 26%;">碳足跡公斤數與宣告單位</th>
-            <th style="width: 20%;">證書有效期限</th>
+            <th style="width: 31%;">產品與廠商名稱</th>
+            <th style="width: 19%;">證書與統一編號</th>
+            <th style="width: 24%;">碳足跡公斤數與宣告單位</th>
+            <th style="width: 16%;">證書有效期限</th>
+            <th style="width: 10%;">操作</th>
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
@@ -675,6 +697,138 @@ async function fetchJson(path) {
     throw new Error(`無法載入 ${finalUrl} (HTTP ${res.status})`);
   }
   return res.json();
+}
+
+async function fetchOptionalJson(path, fallbackValue) {
+  const requestUrl = new URL(path, window.location.href).href;
+  try {
+    const res = await fetch(requestUrl);
+    if (!res.ok) return fallbackValue;
+    return await res.json();
+  } catch {
+    return fallbackValue;
+  }
+}
+
+function findFactorDetail(name) {
+  if (!name || !state.details || typeof state.details !== "object") return null;
+  if (state.details[name]) return state.details[name];
+  const norm = normalizeSearchText(name);
+  return state.detailsNormalizedMap.get(norm) || null;
+}
+
+function pickDetailField(detail, candidates) {
+  if (!detail) return "";
+  for (const key of candidates) {
+    if (detail[key] !== undefined && detail[key] !== null && String(detail[key]).trim() !== "") {
+      return String(detail[key]).trim();
+    }
+  }
+  const normalizedEntries = Object.entries(detail).map(([k, v]) => [k.replace(/\s+/g, ""), v]);
+  for (const key of candidates) {
+    const cleanTarget = key.replace(/\s+/g, "");
+    const found = normalizedEntries.find(([k]) => k.includes(cleanTarget));
+    if (found && found[1] !== undefined && found[1] !== null && String(found[1]).trim() !== "") {
+      return String(found[1]).trim();
+    }
+  }
+  return "";
+}
+
+function formatDetailCellHtml(value) {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return `<span class="detail-empty">--</span>`;
+  }
+  return escapeHtml(String(value).trim()).replace(/\n/g, "<br>");
+}
+
+function renderDetailTable(rows) {
+  const rowsHtml = rows
+    .map((row) => {
+      if (row.type === "pair") {
+        return `
+          <tr>
+            <th>${escapeHtml(row.label1)}</th>
+            <td>${row.html1 ?? formatDetailCellHtml(row.value1)}</td>
+            <th>${escapeHtml(row.label2)}</th>
+            <td>${row.html2 ?? formatDetailCellHtml(row.value2)}</td>
+          </tr>
+        `;
+      }
+      return `
+        <tr class="detail-row-single">
+          <th>${escapeHtml(row.label)}</th>
+          <td colspan="3">${row.html ?? formatDetailCellHtml(row.value)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  return `<div class="detail-table-wrap"><table class="detail-table"><tbody>${rowsHtml}</tbody></table></div>`;
+}
+
+function openFactorDetailModal(factor) {
+  const detail = findFactorDetail(factor.name);
+  els.detailModalTitle.textContent = `排放係數細部資料｜${factor.name || "未命名項目"}`;
+
+  if (detail) {
+    const scopeFallback = [...factor._isoTokens, ...factor._ghgTokens].join("、");
+    const coeVal = pickDetailField(detail, ["碳足跡排放係數數值", "碳足跡數值"]) || (factor.coe || String(factor.coe_num ?? ""));
+    const unitVal = pickDetailField(detail, ["數量", "宣告單位"]) || (factor.unit ? `1 ${factor.unit}` : "");
+    const rows = [
+      { type: "single", label: "中文名稱", value: pickDetailField(detail, ["中文名稱"]) || factor.name },
+      { type: "single", label: "英文名稱", value: pickDetailField(detail, ["英文名稱"]) },
+      { type: "single", label: "化學式或俗名", value: pickDetailField(detail, ["化學式或俗名"]) },
+      { type: "pair", label1: "碳足跡數值", value1: coeVal, label2: "數量", value2: unitVal },
+      { type: "single", label: "生命週期範疇", value: pickDetailField(detail, ["生命週期範疇"]) },
+      { type: "single", label: "排除項目", value: pickDetailField(detail, ["排除項目"]) },
+      { type: "single", label: "技術描述", value: pickDetailField(detail, ["技術描述"]) },
+      { type: "pair", label1: "生產區域", value1: pickDetailField(detail, ["生產區域名稱", "生產區域"]), label2: "盤查起迄日", value2: pickDetailField(detail, ["盤查起迄日"]) },
+      { type: "single", label: "活動數據來源", value: pickDetailField(detail, ["活動數據來源"]) },
+      { type: "single", label: "排放係數來源", value: pickDetailField(detail, ["排放係數來源"]) },
+      { type: "pair", label1: "輔導單位", value1: pickDetailField(detail, ["碳足跡計算輔導單位名稱", "輔導單位"]), label2: "建置單位", value2: pickDetailField(detail, ["建置單位名稱", "建置單位"]) || factor.department },
+      { type: "pair", label1: "第三方查驗證", value1: pickDetailField(detail, ["是否經第三方查驗證", "第三方查驗證"]), label2: "審查結果", value2: pickDetailField(detail, ["係數審查結果", "審查結果"]) },
+      { type: "pair", label1: "公告年份", value1: pickDetailField(detail, ["公告年份"]) || factor.announcement_year, label2: "範疇三類別", value2: pickDetailField(detail, ["類別", "範疇三類別"]) || scopeFallback },
+      { type: "single", label: "備註", value: pickDetailField(detail, ["備註"]) },
+    ];
+    els.detailModalBody.innerHTML = renderDetailTable(rows);
+  } else {
+    const coeText = factor.coe || (factor.coe_num ?? "--");
+    const noticeHtml = `<div class="detail-notice">目前尚未取得此筆係數之環境部網頁明細（<code>data/cfp_details.json</code> 尚無對應紀錄），以下為開放資料提供的 7 項基本欄位：</div>`;
+    const rows = [
+      { type: "single", label: "中文名稱", value: factor.name },
+      { type: "pair", label1: "碳足跡數值 (kgCO₂e)", value1: coeText, label2: "宣告單位", value2: factor.unit },
+      { type: "pair", label1: "建置／提供單位", value1: factor.department, label2: "公告年份", value2: factor.announcement_year },
+      { type: "pair", label1: "ISO 範疇三類別", value1: factor._isoTokens.join("、") || factor.scope3_iso, label2: "GHG 範疇三類別", value2: factor._ghgTokens.join("、") || factor.scope3_ghg },
+    ];
+    els.detailModalBody.innerHTML = noticeHtml + renderDetailTable(rows);
+  }
+
+  els.detailModal.hidden = false;
+}
+
+function openProductDetailModal(product) {
+  els.detailModalTitle.textContent = `碳標籤產品細部資料｜${product.product_name || "未命名產品"}`;
+  const kgText =
+    product.footprint_kg !== null && product.footprint_kg !== undefined
+      ? `${formatNumber(product.footprint_kg, 4)} kgCO₂e`
+      : "--";
+  const validityHtml = `<span class="mono">${escapeHtml(product.expired_date || "--")}</span> <span class="badge ${product._validity.badgeClass}">${escapeHtml(product._validity.label)}</span>`;
+
+  const rows = [
+    { type: "single", label: "產品名稱", value: product.product_name },
+    { type: "pair", label1: "碳標籤證書編號", value1: product.cfpl_code, label2: "統一編號", value2: product.ban },
+    { type: "single", label: "公司／團體名稱", value: product.company_name },
+    { type: "pair", label1: "原始碳足跡數據", value1: product.footprint_raw, label2: "換算後公斤數", value2: kgText },
+    { type: "pair", label1: "宣告單位", value1: product.declared_unit, label2: "證書有效期限", html2: validityHtml },
+  ];
+
+  els.detailModalBody.innerHTML = renderDetailTable(rows);
+  els.detailModal.hidden = false;
+}
+
+function closeDetailModal() {
+  els.detailModal.hidden = true;
 }
 
 async function openChangelogModal() {
@@ -762,12 +916,23 @@ function bindEvents() {
     if (!factor) return;
 
     const action = btn.getAttribute("data-action");
-    if (action === "copy-coe") {
+    if (action === "detail-factor") {
+      openFactorDetailModal(factor);
+    } else if (action === "copy-coe") {
       const value = factor.coe || String(factor.coe_num ?? "");
       if (value) copyText(value);
     } else if (action === "calc-coe") {
       loadFactorIntoCalculator(factor);
     }
+  });
+
+  els.productsResults.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    if (btn.getAttribute("data-action") !== "detail-product") return;
+    const rowId = btn.getAttribute("data-row-id");
+    const product = state.products.find((x) => x._rowId === rowId);
+    if (product) openProductDetailModal(product);
   });
 
   els.productsSearch.addEventListener("input", (e) => {
@@ -806,9 +971,19 @@ function bindEvents() {
   els.changelogModal.addEventListener("click", (e) => {
     if (e.target === els.changelogModal) closeChangelogModal();
   });
+
+  els.btnCloseDetail.addEventListener("click", closeDetailModal);
+  els.detailModal.addEventListener("click", (e) => {
+    if (e.target === els.detailModal) closeDetailModal();
+  });
+
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !els.changelogModal.hidden) {
-      closeChangelogModal();
+    if (e.key === "Escape") {
+      if (!els.detailModal.hidden) {
+        closeDetailModal();
+      } else if (!els.changelogModal.hidden) {
+        closeChangelogModal();
+      }
     }
   });
 }
@@ -816,13 +991,18 @@ function bindEvents() {
 async function init() {
   bindEvents();
   try {
-    const [metadata, factorsRaw, productsRaw] = await Promise.all([
+    const [metadata, factorsRaw, productsRaw, detailsRaw] = await Promise.all([
       fetchJson("/data/metadata.json"),
       fetchJson("/data/cfp_factors.json"),
       fetchJson("/data/cfp_products.json"),
+      fetchOptionalJson("/data/cfp_details.json", {}),
     ]);
 
     state.metadata = metadata;
+    state.details = detailsRaw && typeof detailsRaw === "object" && !Array.isArray(detailsRaw) ? detailsRaw : {};
+    state.detailsNormalizedMap = new Map(
+      Object.entries(state.details).map(([k, v]) => [normalizeSearchText(k), v])
+    );
     const p02Count = metadata?.datasets?.CFP_P_02?.total_count ?? factorsRaw.length;
     const p01Count = metadata?.datasets?.CFP_P_01?.total_count ?? productsRaw.length;
 
@@ -850,21 +1030,24 @@ async function init() {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    state.products = productsRaw.map((item) => {
+    state.products = productsRaw.map((item, idx) => {
       const expiredDateObj = parseExpiredDate(item.expired_date);
       const _normProductName = normalizeSearchText(item.product_name);
       const _normCompanyName = normalizeSearchText(item.company_name);
       const _normCfplCode = normalizeSearchText(item.cfpl_code);
       const _normBan = normalizeSearchText(item.ban);
+      const _normDeclaredUnit = normalizeSearchText(item.declared_unit);
       return {
         ...item,
+        _rowId: String(idx),
         _expiredTime: expiredDateObj ? expiredDateObj.getTime() : null,
         _validity: getValidityStatus(expiredDateObj, todayStart),
         _normProductName,
         _normCompanyName,
         _normCfplCode,
         _normBan,
-        _searchText: `${_normProductName} ${_normCompanyName} ${_normCfplCode} ${_normBan}`,
+        _normDeclaredUnit,
+        _searchText: `${_normProductName} ${_normCompanyName} ${_normCfplCode} ${_normBan} ${_normDeclaredUnit}`,
       };
     });
 
