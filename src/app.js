@@ -4,6 +4,8 @@ const state = {
   changelog: null,
   factors: [],
   products: [],
+  factorsFuse: null,
+  productsFuse: null,
   factorsFilter: {
     query: "",
     year: "",
@@ -245,20 +247,60 @@ function populateFactorFilterOptions() {
   fillSelect(els.filterGhg, ghgs, compareScopeToken);
 }
 
+function normalizeSearchText(str) {
+  return String(str ?? "")
+    .replace(/\u3000/g, " ")
+    .replace(/[\uFF01-\uFF5E]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+    .toLowerCase();
+}
+
+function fuzzyMultiKeywordSearch(fuseInstance, allItems, query) {
+  const tokens = normalizeSearchText(query).trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return allItems;
+
+  if (!fuseInstance) {
+    return allItems.filter((item) => tokens.every((kw) => item._searchText.includes(kw)));
+  }
+
+  let matchedMap = null;
+  for (const token of tokens) {
+    const results = fuseInstance.search(token);
+    const currentMap = new Map();
+    for (const res of results) {
+      const score = res.score ?? 0;
+      const existing = currentMap.get(res.item);
+      if (existing === undefined || score < existing) {
+        currentMap.set(res.item, score);
+      }
+    }
+    if (matchedMap === null) {
+      matchedMap = currentMap;
+    } else {
+      const nextMap = new Map();
+      for (const [item, prevScore] of matchedMap.entries()) {
+        if (currentMap.has(item)) {
+          nextMap.set(item, prevScore + currentMap.get(item));
+        }
+      }
+      matchedMap = nextMap;
+    }
+    if (matchedMap.size === 0) return [];
+  }
+
+  return Array.from(matchedMap.entries())
+    .sort((a, b) => a[1] - b[1])
+    .map(([item]) => item);
+}
+
 function getFilteredFactors() {
   const { query, year, unit, iso, ghg } = state.factorsFilter;
-  const keywords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const baseList = fuzzyMultiKeywordSearch(state.factorsFuse, state.factors, query);
 
-  return state.factors.filter((item) => {
+  return baseList.filter((item) => {
     if (year && item.announcement_year !== year) return false;
     if (unit && item.unit !== unit) return false;
     if (iso && !item._isoTokens.includes(iso)) return false;
     if (ghg && !item._ghgTokens.includes(ghg)) return false;
-    if (keywords.length > 0) {
-      for (const kw of keywords) {
-        if (!item._searchText.includes(kw)) return false;
-      }
-    }
     return true;
   });
 }
@@ -434,15 +476,10 @@ function renderFactors() {
 
 function getFilteredProducts() {
   const { query, validity, sort } = state.productsFilter;
-  const keywords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const baseList = fuzzyMultiKeywordSearch(state.productsFuse, state.products, query);
 
-  const list = state.products.filter((item) => {
+  const list = baseList.filter((item) => {
     if (validity && item._validity.key !== validity) return false;
-    if (keywords.length > 0) {
-      for (const kw of keywords) {
-        if (!item._searchText.includes(kw)) return false;
-      }
-    }
     return true;
   });
 
@@ -785,25 +822,70 @@ async function init() {
     els.statProductsCount.textContent = `${p01Count.toLocaleString("zh-TW")} 筆`;
     els.statLastSync.textContent = formatDateTime(metadata?.last_checked_at);
 
-    state.factors = factorsRaw.map((item) => ({
-      ...item,
-      _isoTokens: parseScopeTokens(item.scope3_iso),
-      _ghgTokens: parseScopeTokens(item.scope3_ghg),
-      _searchText: `${item.name ?? ""} ${item.department ?? ""}`.toLowerCase(),
-    }));
+    state.factors = factorsRaw.map((item) => {
+      const _normName = normalizeSearchText(item.name);
+      const _normDepartment = normalizeSearchText(item.department);
+      const _normUnit = normalizeSearchText(item.unit);
+      const _normYear = normalizeSearchText(item.announcement_year);
+      return {
+        ...item,
+        _isoTokens: parseScopeTokens(item.scope3_iso),
+        _ghgTokens: parseScopeTokens(item.scope3_ghg),
+        _normName,
+        _normDepartment,
+        _normUnit,
+        _normYear,
+        _searchText: `${_normName} ${_normDepartment} ${_normUnit} ${_normYear}`,
+      };
+    });
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     state.products = productsRaw.map((item) => {
       const expiredDateObj = parseExpiredDate(item.expired_date);
+      const _normProductName = normalizeSearchText(item.product_name);
+      const _normCompanyName = normalizeSearchText(item.company_name);
+      const _normCfplCode = normalizeSearchText(item.cfpl_code);
+      const _normBan = normalizeSearchText(item.ban);
       return {
         ...item,
         _expiredTime: expiredDateObj ? expiredDateObj.getTime() : null,
         _validity: getValidityStatus(expiredDateObj, todayStart),
-        _searchText: `${item.product_name ?? ""} ${item.company_name ?? ""} ${item.cfpl_code ?? ""} ${item.ban ?? ""}`.toLowerCase(),
+        _normProductName,
+        _normCompanyName,
+        _normCfplCode,
+        _normBan,
+        _searchText: `${_normProductName} ${_normCompanyName} ${_normCfplCode} ${_normBan}`,
       };
     });
+
+    if (typeof window.Fuse === "function") {
+      const fuseBaseOptions = {
+        includeScore: true,
+        threshold: 0.35,
+        ignoreLocation: true,
+        minMatchCharLength: 1,
+      };
+      state.factorsFuse = new window.Fuse(state.factors, {
+        ...fuseBaseOptions,
+        keys: [
+          { name: "_normName", weight: 2 },
+          { name: "_normDepartment", weight: 1.2 },
+          "_normUnit",
+          "_normYear",
+        ],
+      });
+      state.productsFuse = new window.Fuse(state.products, {
+        ...fuseBaseOptions,
+        keys: [
+          { name: "_normProductName", weight: 2 },
+          { name: "_normCompanyName", weight: 1.5 },
+          "_normCfplCode",
+          "_normBan",
+        ],
+      });
+    }
 
     populateFactorFilterOptions();
     renderFactors();

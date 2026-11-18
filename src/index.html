@@ -142,7 +142,7 @@
               <input
                 id="factors-search"
                 type="search"
-                placeholder="搜尋係數名稱或建置單位（支援多關鍵字，例如：電力 2022、環境部）"
+                placeholder="模糊搜尋係數名稱、提供單位、宣告單位或年份（空白分隔多關鍵字，如：電力 2021、kg 環境部）"
                 autocomplete="off"
               />
             </div>
@@ -283,6 +283,7 @@
   <!-- Toast 通知 -->
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

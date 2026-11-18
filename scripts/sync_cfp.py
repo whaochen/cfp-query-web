@@ -59,7 +59,11 @@ def parse_footprint_to_kg(value: str) -> float | None:
     """將 CFP_P_01 的碳足跡字串（如 '26.00kg'、'900.00g'）換算為 kg。"""
     if not value:
         return None
-    match = re.match(r"^\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(kg|g|公克|公斤)?\s*$", value, re.IGNORECASE)
+    match = re.match(
+        r"^\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*(kg|g|公克|公斤)?\s*$",
+        value,
+        re.IGNORECASE,
+    )
     if not match:
         return None
     num = parse_float(match.group(1))
@@ -90,7 +94,7 @@ def normalize_factor(raw: dict[str, Any]) -> dict[str, Any]:
     scope3_ghg = get_field(raw, "scpoe3_ghg", "Scpoe3_ghg", "scope3_ghg", "Scope3_ghg")
 
     return {
-        "id": make_id(name, unit, department, year),
+        "id": make_id(name, coe_str, unit, department, year, scope3_iso, scope3_ghg),
         "name": name,
         "coe": coe_str,
         "coe_num": parse_float(coe_str),
@@ -108,12 +112,14 @@ def normalize_product(raw: dict[str, Any]) -> dict[str, Any]:
     cfpl_code = get_field(raw, "cfpl_code", "CFPL_Code")
     company_name = get_field(raw, "company_name", "Company_Name")
     ban = get_field(raw, "ban", "Ban")
-    footprint_raw = get_field(raw, "product_carbon_footprint_data", "Product_Carbon_Footprint_Data")
+    footprint_raw = get_field(
+        raw, "product_carbon_footprint_data", "Product_Carbon_Footprint_Data"
+    )
     declared_unit = get_field(raw, "declared_unit", "Declared_Unit")
     expired_date = get_field(raw, "expireddate", "ExpiredDate")
 
     return {
-        "id": make_id(cfpl_code, product_name, company_name),
+        "id": make_id(cfpl_code, product_name, company_name, footprint_raw, declared_unit, expired_date),
         "product_name": product_name,
         "cfpl_code": cfpl_code,
         "company_name": company_name,
@@ -125,9 +131,13 @@ def normalize_product(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def fetch_all_records(dataset_id: str, api_key: str) -> list[dict[str, Any]]:
+def fetch_all_records(dataset_id: str, api_key: str) -> tuple[list[dict[str, Any]], int | None]:
+    """
+    不使用 sort=ImportDate desc，避免同一批匯入時間相同導致 API 分頁重複與跳漏。
+    """
     all_records: list[dict[str, Any]] = []
     offset = 0
+    total_reported: int | None = None
     endpoint = f"{API_BASE}/{dataset_id}"
 
     while True:
@@ -136,14 +146,13 @@ def fetch_all_records(dataset_id: str, api_key: str) -> list[dict[str, Any]]:
                 "api_key": api_key,
                 "limit": PAGE_LIMIT,
                 "offset": offset,
-                "sort": "ImportDate desc",
                 "format": "json",
             }
         )
         url = f"{endpoint}?{params}"
         req = urllib.request.Request(
             url,
-            headers={"User-Agent": "MOENV-CFP-Sync/2.0", "Accept": "application/json"},
+            headers={"User-Agent": "MOENV-CFP-Sync/2.1", "Accept": "application/json"},
         )
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
@@ -153,6 +162,12 @@ def fetch_all_records(dataset_id: str, api_key: str) -> list[dict[str, Any]]:
             raise RuntimeError(f"[{dataset_id}] API HTTP {exc.code}: {body[:300]}") from exc
         except urllib.error.URLError as exc:
             raise RuntimeError(f"[{dataset_id}] API 連線失敗: {exc.reason}") from exc
+
+        if isinstance(payload, dict) and "total" in payload:
+            try:
+                total_reported = int(payload["total"])
+            except (TypeError, ValueError):
+                pass
 
         records = payload.get("records") if isinstance(payload, dict) else payload
         if not isinstance(records, list):
@@ -166,7 +181,7 @@ def fetch_all_records(dataset_id: str, api_key: str) -> list[dict[str, Any]]:
             break
         offset += PAGE_LIMIT
 
-    return all_records
+    return all_records, total_reported
 
 
 def load_json(path: Path, default: Any) -> Any:
@@ -218,9 +233,22 @@ def sync_dataset(
     sort_key: Callable[[dict[str, Any]], Any],
     label_key: str,
 ) -> tuple[bool, int, dict[str, Any], str]:
-    raw_records = fetch_all_records(dataset_id, api_key)
-    normalized = [normalizer(r) for r in raw_records]
+    raw_records, total_reported = fetch_all_records(dataset_id, api_key)
+
+    # 依唯一 ID 去重，避免分頁邊界重疊造成重複
+    dedup_map: dict[str, dict[str, Any]] = {}
+    for r in raw_records:
+        item = normalizer(r)
+        dedup_map[item["id"]] = item
+
+    normalized = list(dedup_map.values())
     normalized.sort(key=sort_key)
+
+    if total_reported is not None and len(normalized) != total_reported:
+        print(
+            f"警告：[{dataset_id}] API 宣告共 {total_reported} 筆，實際去重後為 {len(normalized)} 筆。",
+            file=sys.stderr,
+        )
 
     data_hash = hashlib.sha256(
         json.dumps(normalized, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -294,7 +322,9 @@ def main() -> int:
                 "source_url": "https://data.moenv.gov.tw/dataset/detail/CFP_P_02",
                 "file": "cfp_factors.json",
                 "total_count": f_count,
-                "last_synced_at": now_iso if f_changed else existing_meta.get("datasets", {}).get("CFP_P_02", {}).get("last_synced_at", now_iso),
+                "last_synced_at": now_iso
+                if f_changed
+                else existing_meta.get("datasets", {}).get("CFP_P_02", {}).get("last_synced_at", now_iso),
                 "sha256": f_hash,
             },
             "CFP_P_01": {
@@ -302,7 +332,9 @@ def main() -> int:
                 "source_url": "https://data.moenv.gov.tw/dataset/detail/CFP_P_01",
                 "file": "cfp_products.json",
                 "total_count": p_count,
-                "last_synced_at": now_iso if p_changed else existing_meta.get("datasets", {}).get("CFP_P_01", {}).get("last_synced_at", now_iso),
+                "last_synced_at": now_iso
+                if p_changed
+                else existing_meta.get("datasets", {}).get("CFP_P_01", {}).get("last_synced_at", now_iso),
                 "sha256": p_hash,
             },
         },
