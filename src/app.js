@@ -249,8 +249,8 @@ function populateFactorFilterOptions() {
 
 function normalizeSearchText(str) {
   return String(str ?? "")
+    .normalize("NFKC")
     .replace(/\u3000/g, " ")
-    .replace(/[\uFF01-\uFF5E]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
     .toLowerCase();
 }
 
@@ -258,21 +258,29 @@ function fuzzyMultiKeywordSearch(fuseInstance, allItems, query) {
   const tokens = normalizeSearchText(query).trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return allItems;
 
-  if (!fuseInstance) {
-    return allItems.filter((item) => tokens.every((kw) => item._searchText.includes(kw)));
-  }
-
   let matchedMap = null;
   for (const token of tokens) {
-    const results = fuseInstance.search(token);
     const currentMap = new Map();
-    for (const res of results) {
-      const score = res.score ?? 0;
-      const existing = currentMap.get(res.item);
-      if (existing === undefined || score < existing) {
-        currentMap.set(res.item, score);
+
+    // 1. 精準子字串包含優先命中（確保短關鍵字如「電力」、「電力碳」100% 命中）
+    for (const item of allItems) {
+      if (item._searchText.includes(token)) {
+        const titleField = item._normName ?? item._normProductName ?? "";
+        const score = titleField.includes(token) ? 0 : 0.05;
+        currentMap.set(item, score);
       }
     }
+
+    // 2. Fuse.js 模糊容錯輔助命中
+    if (fuseInstance) {
+      const results = fuseInstance.search(token);
+      for (const res of results) {
+        if (!currentMap.has(res.item)) {
+          currentMap.set(res.item, 0.2 + (res.score ?? 0));
+        }
+      }
+    }
+
     if (matchedMap === null) {
       matchedMap = currentMap;
     } else {
