@@ -1014,7 +1014,7 @@ function renderChangelogModal(entries) {
 
 async function fetchJson(path) {
   const requestUrl = new URL(path, window.location.href).href;
-  const res = await fetch(requestUrl);
+  const res = await fetch(requestUrl, { cache: "no-cache" });
   if (!res.ok) {
     const finalUrl = res.url || requestUrl;
     console.error(`資料請求失敗: ${finalUrl} (HTTP ${res.status} ${res.statusText})`);
@@ -1026,7 +1026,7 @@ async function fetchJson(path) {
 async function fetchOptionalJson(path, fallbackValue) {
   const requestUrl = new URL(path, window.location.href).href;
   try {
-    const res = await fetch(requestUrl);
+    const res = await fetch(requestUrl, { cache: "no-cache" });
     if (!res.ok) return fallbackValue;
     return await res.json();
   } catch {

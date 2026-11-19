@@ -6,6 +6,8 @@ Suitable for both local preview and Cloudflare Pages deployment.
 
 from __future__ import annotations
 
+import hashlib
+import re
 import shutil
 from pathlib import Path
 
@@ -15,16 +17,28 @@ DATA_DIR = ROOT_DIR / "data"
 DIST_DIR = ROOT_DIR / "dist"
 
 
+def short_hash(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:8]
+
+
 def build() -> None:
     if DIST_DIR.exists():
         shutil.rmtree(DIST_DIR)
     DIST_DIR.mkdir(parents=True, exist_ok=True)
+
+    css_hash = short_hash(SRC_DIR / "styles.css")
+    js_hash = short_hash(SRC_DIR / "app.js")
 
     # Copy all static files from src/ to dist/
     for item in SRC_DIR.iterdir():
         target = DIST_DIR / item.name
         if item.is_dir():
             shutil.copytree(item, target)
+        elif item.name == "index.html":
+            html = item.read_text(encoding="utf-8")
+            html = re.sub(r'(\./styles\.css)(?:\?v=[^"\']+)?', rf"\1?v={css_hash}", html)
+            html = re.sub(r'(\./app\.js)(?:\?v=[^"\']+)?', rf"\1?v={js_hash}", html)
+            target.write_text(html, encoding="utf-8")
         else:
             shutil.copy2(item, target)
 
