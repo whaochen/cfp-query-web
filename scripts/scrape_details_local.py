@@ -18,6 +18,7 @@ import argparse
 import json
 import re
 import time
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -55,8 +56,7 @@ FIELD_LABELS = [
 
 def normalize_key(text: str) -> str:
     return (
-        text.replace("（", "(")
-        .replace("）", ")")
+        unicodedata.normalize("NFKC", text)
         .replace("\u3000", " ")
         .strip()
     )
@@ -76,16 +76,27 @@ def save_json(path: Path, data: Any) -> None:
 
 
 def parse_detail_table(page) -> dict[str, str]:
-    """從環境部細部資料頁的表格擷取所有「揭露項目：內容」。"""
+    """從環境部細部資料頁的 OchiTrasTable（或 table）擷取所有「揭露項目：內容」。"""
     raw_pairs: list[tuple[str, str]] = page.evaluate(
         """() => {
             const results = [];
+            const titles = document.querySelectorAll('.OchiTrasTable .OchiTitle');
+            for (const titleEl of titles) {
+                const k = (titleEl.innerText || '').replace(/\\s+/g, ' ').replace(/[：:]+$/, '').trim();
+                let valEl = titleEl.nextElementSibling;
+                while (valEl && !valEl.classList.contains('OchiCell')) {
+                    valEl = valEl.nextElementSibling;
+                }
+                const v = valEl ? (valEl.innerText || '').trim() : '';
+                if (k) results.push([k, v]);
+            }
+            if (results.length > 0) return results;
+
             const tables = document.querySelectorAll('table');
             for (const table of tables) {
                 const rows = table.querySelectorAll('tr');
                 for (const row of rows) {
                     const cells = Array.from(row.querySelectorAll('th, td'));
-                    // 環境部明細頁常見一列兩組 (標籤, 值, 標籤, 值) 或一列一組 (標籤, 值)
                     for (let i = 0; i + 1 < cells.length; i += 2) {
                         const k = (cells[i].innerText || '').replace(/\\s+/g, ' ').replace(/[：:]+$/, '').trim();
                         const v = (cells[i + 1].innerText || '').trim();
@@ -109,17 +120,17 @@ def scrape_one_item(page, factor_name: str) -> dict[str, str] | None:
     """透過關鍵字查詢並點進對應的細部資料頁。"""
     page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=30000)
 
-    # 找到關鍵字輸入框與查詢按鈕
-    search_input = page.locator("input[type='text']").last
+    search_input = page.locator("#ContentPlaceHolder1_CoefficientData_Tab_txt_keyword")
+    search_input.wait_for(state="visible", timeout=15000)
     search_input.fill("")
     search_input.fill(factor_name)
 
-    query_btn = page.locator("input[value='查詢'], button:has-text('查詢')").first
+    query_btn = page.locator("#ContentPlaceHolder1_CoefficientData_Tab_btnSearch")
     query_btn.click()
-    page.wait_for_load_state("networkidle", timeout=20000)
 
-    # 尋找結果列表中的對應連結（優先精確比對，其次正規化比對）
-    links = page.locator("table a")
+    links = page.locator("a[href*='CoefficientData_Tab']")
+    links.first.wait_for(timeout=15000)
+
     count = links.count()
     target_link = None
     norm_target = normalize_key(factor_name)
@@ -134,10 +145,7 @@ def scrape_one_item(page, factor_name: str) -> dict[str, str] | None:
         return None
 
     target_link.click()
-    page.wait_for_load_state("networkidle", timeout=20000)
-
-    # 確認頁面上已出現「下載PDF」或「中文名稱」代表進入明細頁
-    page.wait_for_selector("text=中文名稱", timeout=15000)
+    page.wait_for_selector(".OchiTrasTable", timeout=15000)
     return parse_detail_table(page)
 
 

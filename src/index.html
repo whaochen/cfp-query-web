@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=20261119-3" />
+  <link rel="stylesheet" href="./styles.css?v=20261119-4" />
 </head>
 <body>
   <div class="app-shell">
@@ -54,14 +54,25 @@
 
     <!-- 主內容區 -->
     <main class="container main-content">
-      <!-- 雙分頁切換 -->
+      <!-- 三分頁切換 -->
       <nav class="tabs-nav" role="tablist" aria-label="資料集查詢分頁">
         <button
-          id="tab-btn-factors"
+          id="tab-btn-combined"
           class="tab-btn active"
           type="button"
           role="tab"
           aria-selected="true"
+          aria-controls="panel-combined"
+        >
+          <span class="tab-title">綜合查詢</span>
+          <span class="tab-badge">Tier 1 + 2</span>
+        </button>
+        <button
+          id="tab-btn-factors"
+          class="tab-btn"
+          type="button"
+          role="tab"
+          aria-selected="false"
           aria-controls="panel-factors"
         >
           <span class="tab-title">排放係數查詢</span>
@@ -80,8 +91,44 @@
         </button>
       </nav>
 
+      <!-- ISO 14067 生命週期情境引導（適用於綜合查詢與排放係數分頁） -->
+      <section id="lifecycle-guide" class="card lifecycle-card" aria-label="ISO 14067 生命週期情境引導">
+        <div class="lifecycle-header">
+          <div>
+            <span class="lifecycle-eyebrow">ISO 14067 盤查情境引導</span>
+            <h2 class="lifecycle-title">依生命週期階段快速篩選常用係數</h2>
+          </div>
+          <button id="btn-clear-stage" type="button" class="btn btn-ghost btn-xs" hidden>清除階段篩選</button>
+        </div>
+        <div id="lifecycle-stages" class="lifecycle-grid" role="group" aria-label="五大生命週期階段"></div>
+        <div id="lifecycle-tip" class="lifecycle-tip" hidden></div>
+      </section>
+
+      <!-- 分頁零：綜合查詢 (Tier 1 + Tier 2) -->
+      <section id="panel-combined" class="tab-panel active" role="tabpanel" aria-labelledby="tab-btn-combined">
+        <section class="card filter-card" aria-label="綜合關鍵字查詢">
+          <div class="filter-row-search">
+            <div class="search-input-wrap">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                id="combined-search"
+                type="search"
+                placeholder="同時搜尋 Tier 1 排放係數與 Tier 2 碳標籤產品（如：衛生紙、電力、鮮乳、PET）"
+                autocomplete="off"
+              />
+            </div>
+            <button id="combined-reset-filters" type="button" class="btn btn-outline">清除條件</button>
+          </div>
+        </section>
+
+        <div id="combined-results" class="combined-results"></div>
+      </section>
+
       <!-- 分頁一：排放係數查詢 (CFP_P_02) -->
-      <section id="panel-factors" class="tab-panel active" role="tabpanel" aria-labelledby="tab-btn-factors">
+      <section id="panel-factors" class="tab-panel" role="tabpanel" aria-labelledby="tab-btn-factors" hidden>
         <!-- 內建簡易試算器 -->
         <section class="card calculator-card" aria-label="碳排放量簡易試算器">
           <div class="calculator-header">
@@ -285,16 +332,29 @@
     <div class="modal-dialog modal-dialog-lg">
       <div class="modal-header">
         <h2 id="detail-modal-title">細部資料</h2>
-        <button id="btn-close-detail" type="button" class="btn-icon-close" aria-label="關閉視窗">&times;</button>
+        <div class="modal-header-actions">
+          <button id="btn-export-pdf" type="button" class="btn btn-outline btn-sm" hidden>
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 9V2h12v7" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            匯出 PDF
+          </button>
+          <button id="btn-close-detail" type="button" class="btn-icon-close" aria-label="關閉視窗">&times;</button>
+        </div>
       </div>
       <div id="detail-modal-body" class="modal-body"></div>
     </div>
   </div>
 
+  <!-- A4 列印專用容器（僅於 @media print 顯示） -->
+  <div id="print-area" class="print-only" aria-hidden="true"></div>
+
   <!-- Toast 通知 -->
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
-  <script type="module" src="./app.js?v=20261119-3"></script>
+  <script type="module" src="./app.js?v=20261119-4"></script>
 </body>
 </html>
