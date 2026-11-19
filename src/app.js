@@ -7,6 +7,7 @@ const state = {
   changelog: null,
   details: {},
   detailsNormalizedMap: new Map(),
+  productDetails: {},
   factors: [],
   products: [],
   factorsFuse: null,
@@ -769,12 +770,16 @@ function buildProductResultsMarkup(items) {
         item.footprint_kg !== null && item.footprint_kg !== undefined
           ? `${formatNumber(item.footprint_kg, 4)} kg`
           : "--";
+      const modelHtml = item.product_model
+        ? `<div class="cell-sub">型號：${escapeHtml(item.product_model)}</div>`
+        : "";
       return `
         <tr>
           <td>
             <div class="cell-title">
               <button type="button" class="cell-title-btn" data-action="detail-product" data-row-id="${escapeHtml(item._rowId)}">${escapeHtml(item.product_name)}</button>
             </div>
+            ${modelHtml}
             <div class="cell-sub">${escapeHtml(item.company_name || "--")}</div>
           </td>
           <td>
@@ -805,6 +810,9 @@ function buildProductResultsMarkup(items) {
         item.footprint_kg !== null && item.footprint_kg !== undefined
           ? `${formatNumber(item.footprint_kg, 4)} kg`
           : "--";
+      const modelRow = item.product_model
+        ? `<div class="meta-pair" style="grid-column: 1 / -1;"><span>產品型號</span><span>${escapeHtml(item.product_model)}</span></div>`
+        : "";
       return `
         <article class="item-card">
           <div class="item-card-header">
@@ -812,6 +820,7 @@ function buildProductResultsMarkup(items) {
             <span class="badge ${item._validity.badgeClass}">${escapeHtml(item._validity.label)}</span>
           </div>
           <div class="item-card-meta">
+            ${modelRow}
             <div class="meta-pair" style="grid-column: 1 / -1;">
               <span>廠商／團體名稱</span>
               <strong>${escapeHtml(item.company_name || "--")}</strong>
@@ -1204,7 +1213,18 @@ function openFactorDetailModal(factor) {
   els.detailModal.hidden = false;
 }
 
+function formatExternalLinkHtml(url) {
+  const trimmed = String(url ?? "").trim();
+  if (!trimmed) return `<span class="detail-empty">--</span>`;
+  if (/^https?:\/\//i.test(trimmed)) {
+    const safe = escapeHtml(trimmed);
+    return `<a href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a>`;
+  }
+  return escapeHtml(trimmed);
+}
+
 function openProductDetailModal(product) {
+  const d = product._detail || {};
   els.detailModalTitle.textContent = `碳標籤產品細部資料｜${product.product_name || "未命名產品"}`;
   const kgText =
     product.footprint_kg !== null && product.footprint_kg !== undefined
@@ -1212,12 +1232,31 @@ function openProductDetailModal(product) {
       : "--";
   const validityHtml = `<span class="mono">${escapeHtml(product.expired_date || "--")}</span> <span class="badge ${product._validity.badgeClass}">${escapeHtml(product._validity.label)}</span>`;
 
+  const productModel = d["產品型號"] || product.product_model || "";
+  const productType = d["產品類型"] || "";
+  const effectiveDate = d["生效日期"] || "";
+  const statusText = d["狀態"] || product._validity.label;
+  const infoUrl = d["產品碳足跡相關資訊網址"] || "";
+  const unitCarbon = d["單位碳排"] || "";
+  const pcrText = [d["PCR文件編號"], d["PCR文件名稱"]].filter(Boolean).join(" ");
+  const greenText = [d["標籤類別"], d["綠色採購"] ? `綠色採購：${d["綠色採購"]}` : ""].filter(Boolean).join(" ／ ");
+  const lifecycleShare = d["生命週期各階段比例"] || "";
+  const commitment = d["碳排放減量承諾"] || "";
+  const detailPageUrl = d["明細頁網址"] || "";
+
   const rows = [
     { type: "single", label: "產品名稱", value: product.product_name },
-    { type: "pair", label1: "碳標籤證書編號", value1: product.cfpl_code, label2: "統一編號", value2: product.ban },
-    { type: "single", label: "公司／團體名稱", value: product.company_name },
-    { type: "pair", label1: "原始碳足跡數據", value1: product.footprint_raw, label2: "換算後公斤數", value2: kgText },
-    { type: "pair", label1: "宣告單位", value1: product.declared_unit, label2: "證書有效期限", html2: validityHtml },
+    { type: "pair", label1: "產品型號", value1: productModel, label2: "產品類型", value2: productType },
+    { type: "pair", label1: "碳標籤證書編號", value1: product.cfpl_code, label2: "狀態", value2: statusText },
+    { type: "pair", label1: "生效日期", value1: effectiveDate, label2: "有效期限", html2: validityHtml },
+    { type: "pair", label1: "公司／團體名稱", value1: product.company_name, label2: "統一編號", value2: product.ban },
+    { type: "pair", label1: "碳足跡數據", value1: d["碳足跡數據"] || product.footprint_raw, label2: "換算後公斤數", value2: kgText },
+    { type: "pair", label1: "宣告單位", value1: product.declared_unit, label2: "單位碳排", value2: unitCarbon },
+    { type: "pair", label1: "PCR 文件", value1: pcrText, label2: "標籤類別／採購", value2: greenText },
+    { type: "single", label: "產品碳足跡相關資訊網址", html: formatExternalLinkHtml(infoUrl) },
+    { type: "single", label: "生命週期各階段比例", value: lifecycleShare, preLine: true },
+    { type: "single", label: "碳排放減量承諾", value: commitment, preLine: true },
+    { type: "single", label: "環境部明細頁", html: formatExternalLinkHtml(detailPageUrl) },
   ];
 
   state.currentPrintPayload = {
@@ -1227,13 +1266,22 @@ function openProductDetailModal(product) {
     sourceNote: "資料來源：環境部環境資料開放平臺 CFP_P_01／台灣產品碳足跡資訊網",
     rows: [
       ["產品名稱", product.product_name],
+      ["產品型號", productModel],
+      ["產品類型", productType],
       ["碳標籤證書編號", product.cfpl_code],
-      ["統一編號", product.ban],
+      ["生效日期", effectiveDate],
+      ["有效期限", `${product.expired_date || "--"}（${product._validity.label}）`],
+      ["狀態", statusText],
       ["公司／團體名稱", product.company_name],
-      ["原始碳足跡數據", product.footprint_raw],
+      ["統一編號", product.ban],
+      ["碳足跡數據", d["碳足跡數據"] || product.footprint_raw],
       ["換算後公斤數", kgText],
       ["宣告單位", product.declared_unit],
-      ["證書有效期限", `${product.expired_date || "--"}（${product._validity.label}）`],
+      ["單位碳排", unitCarbon],
+      ["PCR 文件", pcrText],
+      ["產品碳足跡相關資訊網址", infoUrl],
+      ["生命週期各階段比例", lifecycleShare],
+      ["碳排放減量承諾", commitment],
     ],
   };
 
@@ -1517,14 +1565,27 @@ function bindEvents() {
   });
 }
 
+function parseFootprintToKg(raw) {
+  const str = String(raw ?? "").replace(/,/g, "").trim();
+  const m = str.match(/(\d+(?:\.\d+)?)\s*(kg|公[斤]|g|公克|t|mt|公噸)/i);
+  if (!m) return null;
+  const num = parseFloat(m[1]);
+  if (Number.isNaN(num)) return null;
+  const unit = m[2].toLowerCase();
+  if (unit === "g" || unit === "公克") return num / 1000;
+  if (unit === "t" || unit === "mt" || unit === "公噸") return num * 1000;
+  return num;
+}
+
 async function init() {
   bindEvents();
   try {
-    const [metadata, factorsRaw, productsRaw, detailsRaw] = await Promise.all([
+    const [metadata, factorsRaw, productsRaw, detailsRaw, productDetailsRaw] = await Promise.all([
       fetchJson("/data/metadata.json"),
       fetchJson("/data/cfp_factors.json"),
       fetchJson("/data/cfp_products.json"),
       fetchOptionalJson("/data/cfp_details.json", {}),
+      fetchOptionalJson("/data/cfp_product_details.json", {}),
     ]);
 
     state.metadata = metadata;
@@ -1532,8 +1593,55 @@ async function init() {
     state.detailsNormalizedMap = new Map(
       Object.entries(state.details).map(([k, v]) => [normalizeSearchText(k), v])
     );
+    state.productDetails =
+      productDetailsRaw && typeof productDetailsRaw === "object" && !Array.isArray(productDetailsRaw)
+        ? productDetailsRaw
+        : {};
+
+    const mergedProductsRaw = [];
+    const seenCodes = new Set();
+
+    // 先將 API 尚未收錄的即時網頁核發產品（存在 cfp_product_details.json 但不在 cfp_products.json）置於最前
+    const apiCodeSet = new Set(productsRaw.map((x) => String(x.cfpl_code || "").trim()).filter(Boolean));
+    const liveOnlyEntries = Object.entries(state.productDetails)
+      .filter(([code]) => code && !apiCodeSet.has(code))
+      .sort((a, b) => b[0].localeCompare(a[0]));
+
+    for (const [code, d] of liveOnlyEntries) {
+      seenCodes.add(code);
+      const rawData = d["碳足跡數據"] || "";
+      mergedProductsRaw.push({
+        id: `live-${code}`,
+        product_name: d["產品名稱"] || "",
+        product_model: d["產品型號"] || "",
+        cfpl_code: d["碳標籤證書編號"] || code,
+        company_name: d["公司／團體名稱"] || "",
+        ban: d["統一編號"] || "",
+        footprint_raw: rawData,
+        footprint_kg: parseFootprintToKg(rawData),
+        declared_unit: d["宣告單位"] || "",
+        expired_date: d["有效期限"] || "",
+        _detail: d,
+      });
+    }
+
+    for (const item of productsRaw) {
+      const code = String(item.cfpl_code || "").trim();
+      const d = (code && state.productDetails[code]) || null;
+      if (code) seenCodes.add(code);
+      mergedProductsRaw.push({
+        ...item,
+        product_model: d?.["產品型號"] || "",
+        company_name: item.company_name || d?.["公司／團體名稱"] || "",
+        ban: item.ban || d?.["統一編號"] || "",
+        declared_unit: item.declared_unit || d?.["宣告單位"] || "",
+        expired_date: item.expired_date || d?.["有效期限"] || "",
+        _detail: d,
+      });
+    }
+
     const p02Count = metadata?.datasets?.CFP_P_02?.total_count ?? factorsRaw.length;
-    const p01Count = metadata?.datasets?.CFP_P_01?.total_count ?? productsRaw.length;
+    const p01Count = Math.max(metadata?.datasets?.CFP_P_01?.total_count ?? 0, mergedProductsRaw.length);
 
     els.statFactorsCount.textContent = `${p02Count.toLocaleString("zh-TW")} 筆`;
     els.statProductsCount.textContent = `${p01Count.toLocaleString("zh-TW")} 筆`;
@@ -1559,9 +1667,10 @@ async function init() {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    state.products = productsRaw.map((item, idx) => {
+    state.products = mergedProductsRaw.map((item, idx) => {
       const expiredDateObj = parseExpiredDate(item.expired_date);
       const _normProductName = normalizeSearchText(item.product_name);
+      const _normProductModel = normalizeSearchText(item.product_model);
       const _normCompanyName = normalizeSearchText(item.company_name);
       const _normCfplCode = normalizeSearchText(item.cfpl_code);
       const _normBan = normalizeSearchText(item.ban);
@@ -1572,11 +1681,12 @@ async function init() {
         _expiredTime: expiredDateObj ? expiredDateObj.getTime() : null,
         _validity: getValidityStatus(expiredDateObj, todayStart),
         _normProductName,
+        _normProductModel,
         _normCompanyName,
         _normCfplCode,
         _normBan,
         _normDeclaredUnit,
-        _searchText: `${_normProductName} ${_normCompanyName} ${_normCfplCode} ${_normBan} ${_normDeclaredUnit}`,
+        _searchText: `${_normProductName} ${_normProductModel} ${_normCompanyName} ${_normCfplCode} ${_normBan} ${_normDeclaredUnit}`,
       };
     });
 
@@ -1600,6 +1710,7 @@ async function init() {
         ...fuseBaseOptions,
         keys: [
           { name: "_normProductName", weight: 2 },
+          { name: "_normProductModel", weight: 1.8 },
           { name: "_normCompanyName", weight: 1.5 },
           "_normCfplCode",
           "_normBan",
