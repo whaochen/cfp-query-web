@@ -65,6 +65,7 @@ const els = {
   calcSelectedName: document.getElementById("calc-selected-name"),
   calcQuantity: document.getElementById("calc-quantity"),
   calcUnitLabel: document.getElementById("calc-unit-label"),
+  calcCoeUnitLabel: document.getElementById("calc-coe-unit-label"),
   calcCoe: document.getElementById("calc-coe"),
   calcResultKg: document.getElementById("calc-result-kg"),
   calcResultTon: document.getElementById("calc-result-ton"),
@@ -262,9 +263,16 @@ function updateCalculator() {
 }
 
 function loadFactorIntoCalculator(factor) {
+  if (state.activeTab !== "factors") {
+    switchTab("factors");
+  }
   const coeVal = factor.coe_num !== null && factor.coe_num !== undefined ? factor.coe_num : factor.coe;
+  const unitText = factor.unit || "單位";
   els.calcSelectedName.textContent = factor.name || "未命名係數";
-  els.calcUnitLabel.textContent = factor.unit || "單位";
+  els.calcUnitLabel.textContent = unitText;
+  if (els.calcCoeUnitLabel) {
+    els.calcCoeUnitLabel.textContent = unitText;
+  }
   els.calcCoe.value = coeVal ?? "";
   if (!els.calcQuantity.value || Number(els.calcQuantity.value) <= 0) {
     els.calcQuantity.value = "1";
@@ -1634,6 +1642,9 @@ function bindEvents() {
   els.btnCalcReset.addEventListener("click", () => {
     els.calcSelectedName.textContent = "請由下方列表點選「試算」或直接輸入自訂係數";
     els.calcUnitLabel.textContent = "單位";
+    if (els.calcCoeUnitLabel) {
+      els.calcCoeUnitLabel.textContent = "單位";
+    }
     els.calcQuantity.value = "1";
     els.calcCoe.value = "";
     updateCalculator();
