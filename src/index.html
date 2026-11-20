@@ -196,7 +196,28 @@
             <button id="factors-reset-filters" type="button" class="btn btn-outline">清除篩選</button>
           </div>
 
-          <div class="filter-grid-4">
+          <div class="filter-grid-3 filter-row-gap">
+            <div class="filter-field">
+              <label for="filter-major-cat">四大類別</label>
+              <select id="filter-major-cat">
+                <option value="">全部四大類別</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="filter-cat">大類別</label>
+              <select id="filter-cat">
+                <option value="">全部大類別</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="filter-sub-cat">子類別</label>
+              <select id="filter-sub-cat">
+                <option value="">全部子類別</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-grid-5">
             <div class="filter-field">
               <label for="filter-year">公告年份</label>
               <select id="filter-year">
@@ -207,6 +228,12 @@
               <label for="filter-unit">宣告單位</label>
               <select id="filter-unit">
                 <option value="">全部單位</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="filter-boundary">生命週期範疇</label>
+              <select id="filter-boundary">
+                <option value="">全部系統邊界</option>
               </select>
             </div>
             <div class="filter-field">
@@ -263,14 +290,39 @@
             <button id="products-reset-filters" type="button" class="btn btn-outline">清除篩選</button>
           </div>
 
-          <div class="filter-grid-2">
+          <div class="filter-grid-3 filter-row-gap">
             <div class="filter-field">
-              <label for="filter-validity">證書有效狀態</label>
+              <label for="filter-pcr">產品類別規則（PCR）名稱</label>
+              <select id="filter-pcr">
+                <option value="">全部 PCR</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="filter-label-type">標籤類別</label>
+              <select id="filter-label-type">
+                <option value="">全部類別</option>
+                <option value="碳標籤">碳標籤</option>
+                <option value="減碳標籤">減碳標籤（編號 R 開頭）</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="filter-product-type">產品類型</label>
+              <select id="filter-product-type">
+                <option value="">全部類型</option>
+                <option value="商品">商品</option>
+                <option value="服務">服務</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-grid-3">
+            <div class="filter-field">
+              <label for="filter-validity">標籤狀態</label>
               <select id="filter-validity">
                 <option value="">全部狀態</option>
-                <option value="valid">有效期間內</option>
+                <option value="valid">有效</option>
                 <option value="expiring">即將到期（30天內）</option>
-                <option value="expired">已到期</option>
+                <option value="expired">過期</option>
               </select>
             </div>
             <div class="filter-field">
@@ -280,6 +332,13 @@
                 <option value="asc">到期日：由近到遠（最快到期在前）</option>
                 <option value="desc">到期日：由遠到近（最新效期在前）</option>
               </select>
+            </div>
+            <div class="filter-field">
+              <label for="filter-green-only">綠色採購</label>
+              <label class="checkbox-filter" for="filter-green-only">
+                <input id="filter-green-only" type="checkbox" />
+                <span>僅顯示綠色採購項目</span>
+              </label>
             </div>
           </div>
         </section>

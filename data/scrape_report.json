@@ -1,0 +1,29 @@
+{
+  "generated_at": "2026-11-20T13:27:01+08:00",
+  "cfp_p_02_total": 1188,
+  "cfp_p_02_details_matched": 1184,
+  "cfp_p_02_categories_matched": 1051,
+  "cfp_p_02_missing_count": 4,
+  "cfp_p_02_missing_items": [
+    {
+      "id": "286623dfc346",
+      "name": "以柴油動力垃圾車清除運輸一般廢棄物",
+      "year": "2018"
+    },
+    {
+      "id": "d2312b0c31a3",
+      "name": "過磷酸鈣",
+      "year": "2017"
+    },
+    {
+      "id": "3a16e708464a",
+      "name": "金牌台灣啤酒(500 ml，紙箱24罐裝)",
+      "year": "2016"
+    },
+    {
+      "id": "2c373dc9d4a5",
+      "name": "二甲苯",
+      "year": "2013"
+    }
+  ]
+}

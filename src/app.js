@@ -14,8 +14,12 @@ const state = {
   productsFuse: null,
   factorsFilter: {
     query: "",
+    majorCat: "",
+    cat: "",
+    subCat: "",
     year: "",
     unit: "",
+    boundary: "",
     iso: "",
     ghg: "",
     page: 1,
@@ -23,7 +27,11 @@ const state = {
   },
   productsFilter: {
     query: "",
+    pcr: "",
+    labelType: "",
+    productType: "",
     validity: "",
+    greenOnly: false,
     sort: "default",
     page: 1,
     pageSize: 20,
@@ -61,8 +69,12 @@ const els = {
   btnCalcReset: document.getElementById("btn-calc-reset"),
 
   factorsSearch: document.getElementById("factors-search"),
+  filterMajorCat: document.getElementById("filter-major-cat"),
+  filterCat: document.getElementById("filter-cat"),
+  filterSubCat: document.getElementById("filter-sub-cat"),
   filterYear: document.getElementById("filter-year"),
   filterUnit: document.getElementById("filter-unit"),
+  filterBoundary: document.getElementById("filter-boundary"),
   filterIso: document.getElementById("filter-iso"),
   filterGhg: document.getElementById("filter-ghg"),
   factorsResetFilters: document.getElementById("factors-reset-filters"),
@@ -72,7 +84,11 @@ const els = {
   factorsPagination: document.getElementById("factors-pagination"),
 
   productsSearch: document.getElementById("products-search"),
+  filterPcr: document.getElementById("filter-pcr"),
+  filterLabelType: document.getElementById("filter-label-type"),
+  filterProductType: document.getElementById("filter-product-type"),
   filterValidity: document.getElementById("filter-validity"),
+  filterGreenOnly: document.getElementById("filter-green-only"),
   sortExpired: document.getElementById("sort-expired"),
   productsResetFilters: document.getElementById("products-reset-filters"),
   productsSummary: document.getElementById("products-summary"),
@@ -259,35 +275,90 @@ function loadFactorIntoCalculator(factor) {
   showToast(`已帶入「${factor.name}」至試算器`);
 }
 
+function refillSelectOptions(selectEl, items, defaultLabel, sortFn) {
+  if (!selectEl) return;
+  const currentValue = selectEl.value;
+  selectEl.innerHTML = `<option value="">${escapeHtml(defaultLabel)}</option>`;
+  const sorted = Array.from(items).sort(sortFn);
+  const fragment = document.createDocumentFragment();
+  for (const value of sorted) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    fragment.appendChild(option);
+  }
+  selectEl.appendChild(fragment);
+  if (currentValue && sorted.includes(currentValue)) {
+    selectEl.value = currentValue;
+  }
+}
+
+const MAJOR_CAT_ORDER = ["能源類", "材料類", "食品類", "服務類", "其他"];
+
+function updateFactorCategoryCascades() {
+  const { majorCat, cat } = state.factorsFilter;
+  const cats = new Set();
+  const subCats = new Set();
+
+  for (const item of state.factors) {
+    if (majorCat && item._majorCategory !== majorCat) continue;
+    if (item._category) cats.add(item._category);
+    if (cat && item._category !== cat) continue;
+    if (item._subCategory) subCats.add(item._subCategory);
+  }
+
+  refillSelectOptions(els.filterCat, cats, "全部大類別", (a, b) => a.localeCompare(b, "zh-Hant"));
+  if (state.factorsFilter.cat && !cats.has(state.factorsFilter.cat)) {
+    state.factorsFilter.cat = "";
+    if (els.filterCat) els.filterCat.value = "";
+  }
+
+  refillSelectOptions(els.filterSubCat, subCats, "全部子類別", (a, b) => a.localeCompare(b, "zh-Hant"));
+  if (state.factorsFilter.subCat && !subCats.has(state.factorsFilter.subCat)) {
+    state.factorsFilter.subCat = "";
+    if (els.filterSubCat) els.filterSubCat.value = "";
+  }
+}
+
 function populateFactorFilterOptions() {
+  const majors = new Set();
   const years = new Set();
   const units = new Set();
+  const boundaries = new Set();
   const isos = new Set();
   const ghgs = new Set();
 
   for (const item of state.factors) {
+    if (item._majorCategory) majors.add(item._majorCategory);
     if (item.announcement_year) years.add(item.announcement_year);
     if (item.unit) units.add(item.unit);
+    if (item._boundary) boundaries.add(item._boundary);
     for (const token of item._isoTokens) isos.add(token);
     for (const token of item._ghgTokens) ghgs.add(token);
   }
 
-  const fillSelect = (selectEl, items, sortFn) => {
-    const sorted = Array.from(items).sort(sortFn);
-    const fragment = document.createDocumentFragment();
-    for (const value of sorted) {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = value;
-      fragment.appendChild(option);
-    }
-    selectEl.appendChild(fragment);
-  };
+  refillSelectOptions(els.filterMajorCat, majors, "全部四大類別", (a, b) => {
+    const ia = MAJOR_CAT_ORDER.indexOf(a);
+    const ib = MAJOR_CAT_ORDER.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b, "zh-Hant");
+  });
+  updateFactorCategoryCascades();
+  refillSelectOptions(els.filterYear, years, "全部年份", (a, b) => b.localeCompare(a));
+  refillSelectOptions(els.filterUnit, units, "全部單位", (a, b) => a.localeCompare(b, "zh-Hant"));
+  refillSelectOptions(els.filterBoundary, boundaries, "全部系統邊界", (a, b) => a.localeCompare(b, "zh-Hant"));
+  refillSelectOptions(els.filterIso, isos, "全部類別", compareScopeToken);
+  refillSelectOptions(els.filterGhg, ghgs, "全部類別", compareScopeToken);
+}
 
-  fillSelect(els.filterYear, years, (a, b) => b.localeCompare(a));
-  fillSelect(els.filterUnit, units, (a, b) => a.localeCompare(b, "zh-Hant"));
-  fillSelect(els.filterIso, isos, compareScopeToken);
-  fillSelect(els.filterGhg, ghgs, compareScopeToken);
+function populateProductFilterOptions() {
+  const pcrs = new Set();
+  for (const item of state.products) {
+    if (item._pcrLabel) pcrs.add(item._pcrLabel);
+  }
+  refillSelectOptions(els.filterPcr, pcrs, "全部 PCR", (a, b) => a.localeCompare(b, "zh-Hant"));
 }
 
 function normalizeSearchText(str) {
@@ -542,14 +613,18 @@ function bindMrvCardEvents(container) {
 
 function getFilteredFactors(overrideQuery = null) {
   const query = overrideQuery !== null ? overrideQuery : state.factorsFilter.query;
-  const { year, unit, iso, ghg } = state.factorsFilter;
+  const { majorCat, cat, subCat, year, unit, boundary, iso, ghg } = state.factorsFilter;
   const baseList = fuzzyMultiKeywordSearch(state.factorsFuse, state.factors, query);
 
   return baseList.filter((item) => {
     if (!matchesLifecycleStage(item, state.lifecycleStage)) return false;
     if (overrideQuery === null) {
+      if (majorCat && item._majorCategory !== majorCat) return false;
+      if (cat && item._category !== cat) return false;
+      if (subCat && item._subCategory !== subCat) return false;
       if (year && item.announcement_year !== year) return false;
       if (unit && item.unit !== unit) return false;
+      if (boundary && item._boundary !== boundary) return false;
       if (iso && !item._isoTokens.includes(iso)) return false;
       if (ghg && !item._ghgTokens.includes(ghg)) return false;
     }
@@ -620,12 +695,16 @@ function buildFactorResultsMarkup(items) {
           ? `<div class="tag-list">${boundaryTag}${isoTags}${ghgTags}</div>`
           : `<span class="cell-sub">--</span>`;
 
+      const catPath = [item._majorCategory, item._category, item._subCategory].filter(Boolean).join(" › ");
+      const catHtml = catPath ? `<div class="cell-sub">${escapeHtml(catPath)}</div>` : "";
+
       return `
         <tr>
           <td>
             <div class="cell-title">
               <button type="button" class="cell-title-btn" data-action="detail-factor" data-id="${escapeHtml(item.id)}">${escapeHtml(item.name)}</button>
             </div>
+            ${catHtml}
             <div class="cell-sub">${escapeHtml(item.department || "未提供單位")}</div>
           </td>
           <td>
@@ -722,11 +801,9 @@ function renderFactors() {
   if (total === 0) {
     els.factorsResults.innerHTML = `
       <div class="empty-state">
-        <p>找不到符合條件的排放係數資料，請嘗試調整關鍵字或篩選條件。</p>
+        <p>環境部碳足跡排放係數資料庫（CFP_P_02）目前查無符合條件的項目，請調整關鍵字或篩選條件。</p>
       </div>
-      ${renderMrvPromptCard(state.factorsFilter.query)}
     `;
-    bindMrvCardEvents(els.factorsResults);
     els.factorsPagination.innerHTML = "";
     return;
   }
@@ -741,11 +818,27 @@ function renderFactors() {
 }
 
 function getFilteredProducts() {
-  const { query, validity, sort } = state.productsFilter;
+  const { query, pcr, labelType, productType, validity, greenOnly, sort } = state.productsFilter;
   const baseList = fuzzyMultiKeywordSearch(state.productsFuse, state.products, query);
 
   const list = baseList.filter((item) => {
-    if (validity && item._validity.key !== validity) return false;
+    if (pcr && item._pcrLabel !== pcr) return false;
+    if (labelType && item._labelType !== labelType) return false;
+    if (productType && item._productType !== productType) return false;
+    if (validity) {
+      if (validity === "valid") {
+        if (item._statusKey !== "valid" && item._validity.key !== "valid" && item._validity.key !== "expiring") {
+          return false;
+        }
+      } else if (validity === "expired") {
+        if (item._statusKey !== "expired" && item._validity.key !== "expired") {
+          return false;
+        }
+      } else if (item._validity.key !== validity) {
+        return false;
+      }
+    }
+    if (greenOnly && !item._isGreen) return false;
     return true;
   });
 
@@ -886,11 +979,9 @@ function renderProducts() {
   if (total === 0) {
     els.productsResults.innerHTML = `
       <div class="empty-state">
-        <p>找不到符合條件的碳標籤產品，請嘗試調整關鍵字或篩選條件。</p>
+        <p>環境部碳標籤產品資料庫（CFP_P_01）目前查無符合條件的項目，請調整關鍵字或篩選條件。</p>
       </div>
-      ${renderMrvPromptCard(state.productsFilter.query)}
     `;
-    bindMrvCardEvents(els.productsResults);
     els.productsPagination.innerHTML = "";
     return;
   }
@@ -1453,6 +1544,29 @@ function bindEvents() {
     state.factorsFilter.page = 1;
     renderFactors();
   });
+  els.filterMajorCat.addEventListener("change", (e) => {
+    state.factorsFilter.majorCat = e.target.value;
+    state.factorsFilter.cat = "";
+    state.factorsFilter.subCat = "";
+    state.factorsFilter.page = 1;
+    els.filterCat.value = "";
+    els.filterSubCat.value = "";
+    updateFactorCategoryCascades();
+    renderFactors();
+  });
+  els.filterCat.addEventListener("change", (e) => {
+    state.factorsFilter.cat = e.target.value;
+    state.factorsFilter.subCat = "";
+    state.factorsFilter.page = 1;
+    els.filterSubCat.value = "";
+    updateFactorCategoryCascades();
+    renderFactors();
+  });
+  els.filterSubCat.addEventListener("change", (e) => {
+    state.factorsFilter.subCat = e.target.value;
+    state.factorsFilter.page = 1;
+    renderFactors();
+  });
   els.filterYear.addEventListener("change", (e) => {
     state.factorsFilter.year = e.target.value;
     state.factorsFilter.page = 1;
@@ -1460,6 +1574,11 @@ function bindEvents() {
   });
   els.filterUnit.addEventListener("change", (e) => {
     state.factorsFilter.unit = e.target.value;
+    state.factorsFilter.page = 1;
+    renderFactors();
+  });
+  els.filterBoundary.addEventListener("change", (e) => {
+    state.factorsFilter.boundary = e.target.value;
     state.factorsFilter.page = 1;
     renderFactors();
   });
@@ -1480,17 +1599,26 @@ function bindEvents() {
   });
   els.factorsResetFilters.addEventListener("click", () => {
     state.factorsFilter.query = "";
+    state.factorsFilter.majorCat = "";
+    state.factorsFilter.cat = "";
+    state.factorsFilter.subCat = "";
     state.factorsFilter.year = "";
     state.factorsFilter.unit = "";
+    state.factorsFilter.boundary = "";
     state.factorsFilter.iso = "";
     state.factorsFilter.ghg = "";
     state.factorsFilter.page = 1;
     state.lifecycleStage = "";
     els.factorsSearch.value = "";
+    els.filterMajorCat.value = "";
+    els.filterCat.value = "";
+    els.filterSubCat.value = "";
     els.filterYear.value = "";
     els.filterUnit.value = "";
+    els.filterBoundary.value = "";
     els.filterIso.value = "";
     els.filterGhg.value = "";
+    updateFactorCategoryCascades();
     renderLifecycleGuide();
     renderFactors();
     renderCombined();
@@ -1516,8 +1644,28 @@ function bindEvents() {
     state.productsFilter.page = 1;
     renderProducts();
   });
+  els.filterPcr.addEventListener("change", (e) => {
+    state.productsFilter.pcr = e.target.value;
+    state.productsFilter.page = 1;
+    renderProducts();
+  });
+  els.filterLabelType.addEventListener("change", (e) => {
+    state.productsFilter.labelType = e.target.value;
+    state.productsFilter.page = 1;
+    renderProducts();
+  });
+  els.filterProductType.addEventListener("change", (e) => {
+    state.productsFilter.productType = e.target.value;
+    state.productsFilter.page = 1;
+    renderProducts();
+  });
   els.filterValidity.addEventListener("change", (e) => {
     state.productsFilter.validity = e.target.value;
+    state.productsFilter.page = 1;
+    renderProducts();
+  });
+  els.filterGreenOnly.addEventListener("change", (e) => {
+    state.productsFilter.greenOnly = Boolean(e.target.checked);
     state.productsFilter.page = 1;
     renderProducts();
   });
@@ -1533,11 +1681,19 @@ function bindEvents() {
   });
   els.productsResetFilters.addEventListener("click", () => {
     state.productsFilter.query = "";
+    state.productsFilter.pcr = "";
+    state.productsFilter.labelType = "";
+    state.productsFilter.productType = "";
     state.productsFilter.validity = "";
+    state.productsFilter.greenOnly = false;
     state.productsFilter.sort = "default";
     state.productsFilter.page = 1;
     els.productsSearch.value = "";
+    els.filterPcr.value = "";
+    els.filterLabelType.value = "";
+    els.filterProductType.value = "";
     els.filterValidity.value = "";
+    els.filterGreenOnly.checked = false;
     els.sortExpired.value = "default";
     renderProducts();
   });
@@ -1648,19 +1804,29 @@ async function init() {
     els.statLastSync.textContent = formatDateTime(metadata?.last_checked_at);
 
     state.factors = factorsRaw.map((item) => {
+      const detail = findFactorDetail(item.name);
+      const _majorCategory = item.major_category || detail?.major_category || "";
+      const _category = item.category || detail?.category || "";
+      const _subCategory = item.sub_category || detail?.sub_category || "";
+      const _boundary = getFactorBoundaryTag(item);
       const _normName = normalizeSearchText(item.name);
       const _normDepartment = normalizeSearchText(item.department);
       const _normUnit = normalizeSearchText(item.unit);
       const _normYear = normalizeSearchText(item.announcement_year);
+      const _normCat = normalizeSearchText(`${_majorCategory} ${_category} ${_subCategory}`);
       return {
         ...item,
+        _majorCategory,
+        _category,
+        _subCategory,
+        _boundary,
         _isoTokens: parseScopeTokens(item.scope3_iso),
         _ghgTokens: parseScopeTokens(item.scope3_ghg),
         _normName,
         _normDepartment,
         _normUnit,
         _normYear,
-        _searchText: `${_normName} ${_normDepartment} ${_normUnit} ${_normYear}`,
+        _searchText: `${_normName} ${_normDepartment} ${_normUnit} ${_normYear} ${_normCat}`,
       };
     });
 
@@ -1668,25 +1834,44 @@ async function init() {
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     state.products = mergedProductsRaw.map((item, idx) => {
+      const d = item._detail || {};
       const expiredDateObj = parseExpiredDate(item.expired_date);
+      const codeStr = String(item.cfpl_code || "").trim();
+      const _labelType = item.label_type || d["標籤類別"] || (codeStr.toUpperCase().startsWith("R") ? "減碳標籤" : "碳標籤");
+      const _productType = item.product_type || d["產品類型"] || "";
+      const pcrNo = item.pcr_no || d["PCR文件編號"] || "";
+      const pcrName = item.pcr_name || d["PCR文件名稱"] || "";
+      const _pcrLabel = [pcrNo, pcrName].filter(Boolean).join(" ").trim();
+      const greenStr = String(item.green_procurement || d["綠色採購"] || "").trim();
+      const _isGreen = greenStr === "是" || greenStr.toLowerCase() === "yes" || greenStr === "true";
+      const rawStatus = String(item.status || d["狀態"] || "").trim();
+      const _validity = getValidityStatus(expiredDateObj, todayStart);
+      const _statusKey = rawStatus === "過期" ? "expired" : rawStatus === "有效" ? "valid" : _validity.key;
+
       const _normProductName = normalizeSearchText(item.product_name);
       const _normProductModel = normalizeSearchText(item.product_model);
       const _normCompanyName = normalizeSearchText(item.company_name);
       const _normCfplCode = normalizeSearchText(item.cfpl_code);
       const _normBan = normalizeSearchText(item.ban);
       const _normDeclaredUnit = normalizeSearchText(item.declared_unit);
+      const _normPcr = normalizeSearchText(_pcrLabel);
       return {
         ...item,
         _rowId: String(idx),
         _expiredTime: expiredDateObj ? expiredDateObj.getTime() : null,
-        _validity: getValidityStatus(expiredDateObj, todayStart),
+        _validity,
+        _statusKey,
+        _labelType,
+        _productType,
+        _pcrLabel,
+        _isGreen,
         _normProductName,
         _normProductModel,
         _normCompanyName,
         _normCfplCode,
         _normBan,
         _normDeclaredUnit,
-        _searchText: `${_normProductName} ${_normProductModel} ${_normCompanyName} ${_normCfplCode} ${_normBan} ${_normDeclaredUnit}`,
+        _searchText: `${_normProductName} ${_normProductModel} ${_normCompanyName} ${_normCfplCode} ${_normBan} ${_normDeclaredUnit} ${_normPcr}`,
       };
     });
 
@@ -1719,6 +1904,7 @@ async function init() {
     }
 
     populateFactorFilterOptions();
+    populateProductFilterOptions();
     renderLifecycleGuide();
     renderCombined();
     renderFactors();

@@ -1,34 +1,33 @@
 #!/usr/bin/env python3
 """
-本機專用：從「環境部產品碳足跡資訊網」碳標籤產品查詢頁抓取 CFP_P_01 即時有效清單與細部資料，
-並存為 data/cfp_product_details.json。
-（因網站為 ASP.NET WebForms 動態頁面且雲端 IP 可能受限，此腳本需於本機執行；不下載附件、不需驗證碼）
-
-前置安裝（僅首次需要）：
-  pip install playwright
-  playwright install chromium
+本機專用：從「環境部產品碳足跡資訊網」碳標籤產品查詢頁抓取 CFP_P_01 全量清單（含碳標籤＋減碳標籤、
+有效＋過期、商品＋服務，約 2,201 筆）與細部資料，更新 data/cfp_products.json、
+data/cfp_product_details.json 與 data/metadata.json。
 
 使用方式：
-  python scripts/scrape_products_local.py --limit 5 --headless   # 先試抓 5 筆確認欄位正確
-  python scripts/scrape_products_local.py --headless             # 斷點續傳抓完所有有效碳標籤產品
+  python scripts/scrape_products_local.py --limit 5 --headless
+  python scripts/scrape_products_local.py --workers 4 --headless
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
+import hashlib
 import json
 import re
-import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
 TARGET_URL = "https://cfp.moenv.gov.tw/Carbon/WebPage/visitors/FLProductinfo.aspx"
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
 PRODUCTS_PATH = DATA_DIR / "cfp_products.json"
 PRODUCT_DETAILS_PATH = DATA_DIR / "cfp_product_details.json"
+METADATA_PATH = DATA_DIR / "metadata.json"
 
 
 def load_json(path: Path, default: Any) -> Any:
@@ -45,27 +44,48 @@ def save_json(path: Path, data: Any) -> None:
         f.write("\n")
 
 
-def build_ban_lookup() -> tuple[dict[str, str], dict[str, str]]:
-    """從既有的開放資料 cfp_products.json 建立 核定編號/公司名稱 -> 統一編號 查詢表。"""
-    by_code: dict[str, str] = {}
-    by_company: dict[str, str] = {}
+def parse_footprint_kg(raw: str) -> float | None:
+    s = str(raw or "").replace(",", "").strip()
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(kg|公斤|g|公克|t|mt|公噸)", s, re.IGNORECASE)
+    if not m:
+        return None
+    val = float(m.group(1))
+    unit = m.group(2).lower()
+    if unit in ("g", "公克"):
+        return round(val / 1000.0, 6)
+    if unit in ("t", "mt", "公噸"):
+        return round(val * 1000.0, 6)
+    return round(val, 6)
+
+
+def make_product_id(cfpl_code: str) -> str:
+    return hashlib.sha1(cfpl_code.encode("utf-8")).hexdigest()[:12]
+
+
+def build_existing_lookups() -> tuple[dict[str, dict[str, Any]], dict[str, str], dict[str, str]]:
+    """從既有 cfp_products.json 建立 code -> item 與 統一編號 查詢表。"""
+    existing_by_code: dict[str, dict[str, Any]] = {}
+    ban_by_code: dict[str, str] = {}
+    ban_by_company: dict[str, str] = {}
     products = load_json(PRODUCTS_PATH, [])
     if isinstance(products, list):
         for item in products:
             code = str(item.get("cfpl_code") or "").strip()
             company = str(item.get("company_name") or "").strip()
             ban = str(item.get("ban") or "").strip()
-            if code and ban:
-                by_code[code] = ban
-            if company and ban and company not in by_company:
-                by_company[company] = ban
-    return by_code, by_company
+            if code:
+                existing_by_code[code] = item
+                if ban:
+                    ban_by_code[code] = ban
+            if company and ban and company not in ban_by_company:
+                ban_by_company[company] = ban
+    return existing_by_code, ban_by_code, ban_by_company
 
 
-def extract_list_rows(page, label_type: str) -> list[dict[str, str]]:
+async def extract_list_rows(page) -> list[dict[str, str]]:
     """從目前頁面的 #ContentPlaceHolder1_sgv 擷取清單列。"""
-    rows = page.evaluate(
-        """(labelType) => {
+    return await page.evaluate(
+        """() => {
             const table = document.querySelector('#ContentPlaceHolder1_sgv');
             if (!table) return [];
             const trs = Array.from(table.querySelectorAll('tr'));
@@ -86,111 +106,102 @@ def extract_list_rows(page, label_type: str) -> list[dict[str, str]]:
                     pcr_name: clean(tds[6]),
                     company_name: clean(tds[7]),
                     green_procurement: tds[8] ? clean(tds[8]) : '',
-                    label_type: labelType,
+                    label_type: code.toUpperCase().startsWith('R') ? '減碳標籤' : '碳標籤',
                 });
             }
             return items;
-        }""",
-        label_type,
+        }"""
     )
-    return rows
 
 
-def collect_valid_product_list(page, limit: int = 0) -> list[dict[str, str]]:
-    """收集目前所有有效的「碳標籤」與「減碳標籤」產品清單。"""
+async def collect_all_products_list(page) -> list[dict[str, str]]:
+    """將所有條件設為「全部」（不勾選綠色採購）並以每頁 200 筆掃描全量清單（約 2,201 筆）。"""
+    await page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=45000)
+    await page.wait_for_selector("#ContentPlaceHolder1_sgv", timeout=25000)
+
+    # 確保 標籤類別=全部、產品類型=全部、標籤狀態=全部、綠色採購=不勾選
+    await page.click("#ContentPlaceHolder1_rdn_certificateType1")
+    await page.click("#ContentPlaceHolder1_rdn_ProductState1")
+    await page.click("#ContentPlaceHolder1_rdn_certificateEffect1")
+    green_cb = page.locator("#ContentPlaceHolder1_cbx_GreenProcurement")
+    if await green_cb.is_checked():
+        await green_cb.uncheck()
+
+    await page.click("#ContentPlaceHolder1_btn_search")
+    await page.wait_for_function(
+        """() => {
+            const t = document.querySelector('#ContentPlaceHolder1_lb_datacount')?.innerText || '';
+            const m = t.match(/(\\d+)\\s*筆/);
+            return m && parseInt(m[1], 10) > 1000;
+        }""",
+        timeout=45000,
+    )
+
+    count_text = (await page.locator("#ContentPlaceHolder1_lb_datacount").inner_text()).strip()
+    m = re.search(r"(\d+)\s*筆", count_text)
+    expected_total = int(m.group(1)) if m else 0
+    print(f"清單掃描【全量（全部類別／商品與服務／有效與過期）】：{count_text}")
+
+    # 切換為每頁 200 筆（約 12 頁）
+    if expected_total > 50:
+        await page.select_option("#ContentPlaceHolder1_sle_pagesize", "200")
+        await page.wait_for_function(
+            "() => document.querySelectorAll('#ContentPlaceHolder1_sgv tr').length > 100",
+            timeout=45000,
+        )
+
     collected: dict[str, dict[str, str]] = {}
+    page_num = 1
+    while True:
+        rows = await extract_list_rows(page)
+        for row in rows:
+            code = row["cfpl_code"]
+            if code not in collected:
+                collected[code] = row
 
-    categories = [
-        ("碳標籤", "#ContentPlaceHolder1_rdn_certificateType2"),
-        ("減碳標籤", "#ContentPlaceHolder1_rdn_certificateType3"),
-    ]
-
-    for label_type, radio_selector in categories:
-        if limit > 0 and len(collected) >= limit:
+        print(f"  第 {page_num} 頁讀取 {len(rows)} 筆（累計 {len(collected)} / {expected_total} 筆）")
+        if expected_total and len(collected) >= expected_total:
             break
 
-        page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_selector("#ContentPlaceHolder1_sgv", timeout=20000)
+        next_btn = page.locator("#ContentPlaceHolder1_UC_Pager_sgv_lbtn_nextpage")
+        if await next_btn.count() == 0:
+            break
+        next_href = await next_btn.get_attribute("href") or ""
+        next_cls = await next_btn.get_attribute("class") or ""
+        if "aspNetDisabled" in next_cls or "__doPostBack" not in next_href:
+            break
 
-        # 預設載入即為「碳標籤 + 有效」；切換為「減碳標籤」時需查詢並等待結果更新為 R 開頭
-        if label_type == "減碳標籤":
-            page.click(radio_selector)
-            page.click("#ContentPlaceHolder1_rdn_certificateEffect2")
-            page.click("#ContentPlaceHolder1_btn_search")
-            page.wait_for_function(
-                """() => {
-                    const link = document.querySelector('#ContentPlaceHolder1_sgv_btn_ProductNameCh_0');
-                    return link && link.innerText.trim().startsWith('R');
-                }""",
-                timeout=30000,
-            )
-
-        page.wait_for_selector("#ContentPlaceHolder1_lb_datacount", timeout=15000)
-
-        count_text = page.locator("#ContentPlaceHolder1_lb_datacount").inner_text().strip()
-        m = re.search(r"(\d+)\s*筆", count_text)
-        expected_total = int(m.group(1)) if m else 0
-        print(f"清單掃描【{label_type}（有效）】：{count_text}")
-        if expected_total == 0:
-            continue
-
-        # 切換為每頁 200 筆以減少翻頁次數
-        current_size = page.locator("#ContentPlaceHolder1_sle_pagesize").input_value()
-        if current_size != "200" and expected_total > 50:
-            page.select_option("#ContentPlaceHolder1_sle_pagesize", "200")
-            page.wait_for_function(
-                "() => document.querySelectorAll('#ContentPlaceHolder1_sgv tr').length > 52",
-                timeout=45000,
-            )
-
-        page_num = 1
-        while True:
-            rows = extract_list_rows(page, label_type)
-            for row in rows:
-                code = row["cfpl_code"]
-                if code not in collected:
-                    collected[code] = row
-
-            print(f"  第 {page_num} 頁讀取 {len(rows)} 筆（累計 {len(collected)} 筆）")
-            if limit > 0 and len(collected) >= limit:
+        first_before = rows[0]["cfpl_code"] if rows else ""
+        paged = False
+        for _ in range(2):
+            await next_btn.click()
+            try:
+                await page.wait_for_function(
+                    """(prevFirst) => {
+                        const link = document.querySelector('#ContentPlaceHolder1_sgv_btn_ProductNameCh_0');
+                        return link && link.innerText.trim() !== prevFirst;
+                    }""",
+                    arg=first_before,
+                    timeout=45000,
+                )
+                paged = True
                 break
-
-            # 檢查是否有可點擊的「下一頁」
-            next_btn = page.locator("#ContentPlaceHolder1_UC_Pager_sgv_lbtn_nextpage")
-            if next_btn.count() == 0:
-                break
-            next_href = next_btn.get_attribute("href") or ""
-            next_cls = next_btn.get_attribute("class") or ""
-            if "aspNetDisabled" in next_cls or "__doPostBack" not in next_href:
-                break
-
-            first_before = rows[0]["cfpl_code"] if rows else ""
-            paged = False
-            for _attempt in range(2):
-                next_btn.click()
-                try:
-                    page.wait_for_function(
-                        """(prevFirst) => {
-                            const link = document.querySelector('#ContentPlaceHolder1_sgv_btn_ProductNameCh_0');
-                            return link && link.innerText.trim() !== prevFirst;
-                        }""",
-                        arg=first_before,
-                        timeout=45000,
-                    )
-                    paged = True
-                    break
-                except PlaywrightTimeoutError:
-                    print(f"  第 {page_num + 1} 頁載入逾時，重試中...")
-            if not paged:
-                break
-            page_num += 1
+            except PlaywrightTimeoutError:
+                print(f"  第 {page_num + 1} 頁逾時，重試中...")
+        if not paged:
+            break
+        page_num += 1
 
     return list(collected.values())
 
 
-def parse_detail_page(page, list_item: dict[str, str], ban_by_code: dict[str, str], ban_by_company: dict[str, str]) -> dict[str, str]:
-    """從 FLProductinfoView.aspx 擷取完整細部欄位。"""
-    raw = page.evaluate(
+async def parse_detail_page(
+    page,
+    list_item: dict[str, str],
+    ban_by_code: dict[str, str],
+    ban_by_company: dict[str, str],
+) -> dict[str, str]:
+    raw = await page.evaluate(
         """() => {
             const getText = (sel) => {
                 const el = document.querySelector(sel);
@@ -210,13 +221,11 @@ def parse_detail_page(page, list_item: dict[str, str], ban_by_code: dict[str, st
                 pairs[k] = { text, href };
             });
 
-            // 碳足跡數據/標示單位（#ContentPlaceHolder1_lb_CarbonFootDataUnitFunction_V 等整格文字）
             let footprintCombined = '';
             if (pairs['碳足跡數據/標示單位']) {
                 footprintCombined = pairs['碳足跡數據/標示單位'].text.replace(/\\s+/g, ' ').trim();
             }
 
-            // 產品碳足跡相關資訊網址
             const urlCell = document.querySelector('#ContentPlaceHolder1_lb_LabelDesc7');
             let infoUrl = '';
             if (urlCell) {
@@ -267,9 +276,10 @@ def parse_detail_page(page, list_item: dict[str, str], ban_by_code: dict[str, st
         or ban_by_code.get(cfpl_code, "")
         or ban_by_company.get(company_name, "")
     )
-
     footprint_data = list_item.get("footprint_data") or raw.get("footprint_combined") or raw.get("footprint_val") or ""
-    declared_unit = raw.get("declared_unit") or list_item.get("declared_unit") or ""
+    declared_unit = raw.get("declared_unit") or ""
+    if not declared_unit and "/" in footprint_data:
+        declared_unit = footprint_data.split("/", 1)[1].strip()
 
     return {
         "產品名稱": raw.get("product_name") or list_item.get("product_name", ""),
@@ -288,114 +298,207 @@ def parse_detail_page(page, list_item: dict[str, str], ban_by_code: dict[str, st
         "PCR文件編號": raw.get("pcr_no") or list_item.get("pcr_no", ""),
         "PCR文件名稱": raw.get("pcr_name") or list_item.get("pcr_name", ""),
         "綠色採購": list_item.get("green_procurement", ""),
-        "標籤類別": list_item.get("label_type", ""),
+        "標籤類別": "減碳標籤" if cfpl_code.upper().startswith("R") else "碳標籤",
         "生命週期各階段比例": raw.get("lifecycle_share") or "",
         "碳排放減量承諾": raw.get("reduction_commitment") or "",
         "明細頁網址": page.url,
     }
 
 
-def scrape_one_product(
+async def scrape_one_product(
     page,
     list_item: dict[str, str],
     ban_by_code: dict[str, str],
     ban_by_company: dict[str, str],
 ) -> dict[str, str] | None:
-    """透過核定編號查詢並點進 FLProductinfoView.aspx 擷取完整明細。"""
     cfpl_code = list_item["cfpl_code"]
-    page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=30000)
-    page.wait_for_selector("#ContentPlaceHolder1_tbx_search_CaseNo", timeout=15000)
+    await page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=45000)
+    await page.wait_for_selector("#ContentPlaceHolder1_tbx_search_CaseNo", timeout=20000)
 
-    if list_item.get("label_type") == "減碳標籤" or cfpl_code.startswith("R"):
-        page.click("#ContentPlaceHolder1_rdn_certificateType3")
-    else:
-        page.click("#ContentPlaceHolder1_rdn_certificateType2")
+    # 標籤類別／產品類型／標籤狀態皆設為「全部」，避免過期或減碳標籤查無項目
+    await page.click("#ContentPlaceHolder1_rdn_certificateType1")
+    await page.click("#ContentPlaceHolder1_rdn_ProductState1")
+    await page.click("#ContentPlaceHolder1_rdn_certificateEffect1")
+    await page.fill("#ContentPlaceHolder1_tbx_search_CaseNo", cfpl_code)
+    await page.click("#ContentPlaceHolder1_btn_search")
 
-    page.click("#ContentPlaceHolder1_rdn_certificateEffect2")
-    page.fill("#ContentPlaceHolder1_tbx_search_CaseNo", cfpl_code)
-
-    with page.expect_response(lambda r: "FLProductinfo.aspx" in r.url and r.status == 200, timeout=20000):
-        page.click("#ContentPlaceHolder1_btn_search")
-
-    # 等待表格第一列變成目標核定編號
-    page.wait_for_function(
+    await page.wait_for_function(
         """(targetCode) => {
-            const link = document.querySelector('#ContentPlaceHolder1_sgv_btn_ProductNameCh_0');
-            return link && link.innerText.trim() === targetCode;
+            const links = Array.from(document.querySelectorAll('#ContentPlaceHolder1_sgv a[id*="btn_ProductNameCh"]'));
+            return links.some(a => a.innerText.trim() === targetCode);
         }""",
         arg=cfpl_code,
         timeout=30000,
     )
 
-    with page.expect_navigation(wait_until="domcontentloaded", timeout=45000):
-        page.click("#ContentPlaceHolder1_sgv_btn_ProductNameCh_0")
+    target_link = page.locator("#ContentPlaceHolder1_sgv a[id*='btn_ProductNameCh']", has_text=cfpl_code).first
+    async with page.expect_navigation(wait_until="domcontentloaded", timeout=60000):
+        await target_link.click()
 
-    page.wait_for_selector("#ContentPlaceHolder1_lb_ProductNameCh", timeout=25000)
-    return parse_detail_page(page, list_item, ban_by_code, ban_by_company)
+    await page.wait_for_selector("#ContentPlaceHolder1_lb_ProductNameCh", timeout=30000)
+    return await parse_detail_page(page, list_item, ban_by_code, ban_by_company)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="本機抓取環境部 CFP_P_01 有效碳標籤產品與細部資料")
-    parser.add_argument("--limit", type=int, default=0, help="限制本次最多抓取筆數（0 表示全部）")
-    parser.add_argument("--delay", type=float, default=0.5, help="每筆間隔秒數，避免造成伺服器負擔")
-    parser.add_argument("--headless", action="store_true", help="使用無頭模式執行（預設顯示視窗方便觀察）")
-    parser.add_argument("--refresh", action="store_true", help="重新抓取已存在的項目")
-    args = parser.parse_args()
+def sync_products_and_metadata(
+    all_items: list[dict[str, str]],
+    details: dict[str, dict[str, str]],
+    existing_by_code: dict[str, dict[str, Any]],
+    ban_by_code: dict[str, str],
+    ban_by_company: dict[str, str],
+) -> None:
+    """整合 2,201 筆清單與細部資料寫入 data/cfp_products.json，並同步更新 data/metadata.json。"""
+    merged_list: list[dict[str, Any]] = []
+    seen: set[str] = set()
 
-    ban_by_code, ban_by_company = build_ban_lookup()
+    for item in all_items:
+        code = item["cfpl_code"]
+        seen.add(code)
+        d = details.get(code) or {}
+        ex = existing_by_code.get(code) or {}
+        company_name = d.get("公司／團體名稱") or item.get("company_name") or ex.get("company_name") or ""
+        ban = d.get("統一編號") or ex.get("ban") or ban_by_code.get(code, "") or ban_by_company.get(company_name, "")
+        footprint_raw = d.get("碳足跡數據") or item.get("footprint_data") or ex.get("footprint_raw") or ""
+        declared_unit = d.get("宣告單位") or ex.get("declared_unit") or ""
+        if not declared_unit and "/" in footprint_raw:
+            declared_unit = footprint_raw.split("/", 1)[1].strip()
+        footprint_kg = ex.get("footprint_kg")
+        if footprint_kg is None:
+            footprint_kg = parse_footprint_kg(footprint_raw)
+
+        merged_list.append(
+            {
+                "id": ex.get("id") or make_product_id(code),
+                "product_name": d.get("產品名稱") or item.get("product_name") or ex.get("product_name") or "",
+                "product_model": d.get("產品型號") or item.get("product_model") or "",
+                "product_type": d.get("產品類型") or "",
+                "label_type": d.get("標籤類別") or item.get("label_type") or ("減碳標籤" if code.upper().startswith("R") else "碳標籤"),
+                "cfpl_code": code,
+                "company_name": company_name,
+                "ban": ban,
+                "footprint_raw": footprint_raw,
+                "footprint_kg": footprint_kg,
+                "declared_unit": declared_unit,
+                "unit_carbon": d.get("單位碳排") or item.get("unit_carbon") or "",
+                "pcr_no": d.get("PCR文件編號") or item.get("pcr_no") or "",
+                "pcr_name": d.get("PCR文件名稱") or item.get("pcr_name") or "",
+                "green_procurement": d.get("綠色採購") or item.get("green_procurement") or "",
+                "effective_date": d.get("生效日期") or "",
+                "expired_date": d.get("有效期限") or ex.get("expired_date") or "",
+                "status": d.get("狀態") or "",
+                "info_url": d.get("產品碳足跡相關資訊網址") or "",
+            }
+        )
+
+    save_json(PRODUCTS_PATH, merged_list)
+
+    metadata = load_json(METADATA_PATH, {})
+    if isinstance(metadata, dict):
+        metadata.setdefault("datasets", {}).setdefault("CFP_P_01", {})
+        metadata["datasets"]["CFP_P_01"]["total_count"] = len(merged_list)
+        metadata["datasets"]["CFP_P_01"]["details_count"] = len(details)
+        metadata["last_checked_at"] = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+        save_json(METADATA_PATH, metadata)
+
+
+async def run_async(args: argparse.Namespace) -> int:
+    existing_by_code, ban_by_code, ban_by_company = build_existing_lookups()
     details: dict[str, dict[str, str]] = load_json(PRODUCT_DETAILS_PATH, {})
     if not isinstance(details, dict):
         details = {}
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=args.headless)
-        context = browser.new_context(locale="zh-TW")
-        page = context.new_page()
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=args.headless)
+        context = await browser.new_context(locale="zh-TW")
+        list_page = await context.new_page()
 
-        all_items = collect_valid_product_list(page, limit=0 if args.refresh else 0)
-        pending = [
-            item for item in all_items
-            if args.refresh or item["cfpl_code"] not in details
-        ]
+        all_items = await collect_all_products_list(list_page)
+        await list_page.close()
+
+        # 先同步 2,201 筆基本清單與 metadata
+        sync_products_and_metadata(all_items, details, existing_by_code, ban_by_code, ban_by_company)
+
+        pending = [item for item in all_items if args.refresh or item["cfpl_code"] not in details]
         if args.limit > 0:
             pending = pending[: args.limit]
 
         print(
-            f"有效碳標籤清單共 {len(all_items)} 筆，"
+            f"CFP_P_01 全量清單共 {len(all_items)} 筆，"
             f"已完成細部資料 {len(details)} 筆，"
-            f"本次待抓取 {len(pending)} 筆。"
+            f"本次待抓取 {len(pending)} 筆（並發數：{args.workers}）。"
         )
         if not pending:
-            browser.close()
+            await browser.close()
             return 0
 
-        success = 0
+        queue: asyncio.Queue[tuple[int, dict[str, str]]] = asyncio.Queue()
         for idx, item in enumerate(pending, start=1):
-            code = item["cfpl_code"]
-            name = item["product_name"]
+            queue.put_nowait((idx, item))
+
+        lock = asyncio.Lock()
+        stats = {"done": 0, "success": 0, "failed": 0}
+
+        async def worker(worker_id: int) -> None:
+            page = await context.new_page()
             try:
-                parsed = scrape_one_product(page, item, ban_by_code, ban_by_company)
-                if parsed:
-                    details[code] = parsed
-                    success += 1
-                    print(f"[{idx}/{len(pending)}] 成功：{code} {name}（型號：{parsed.get('產品型號', '')}）")
-                else:
-                    print(f"[{idx}/{len(pending)}] 未取得明細：{code} {name}")
-            except PlaywrightTimeoutError:
-                print(f"[{idx}/{len(pending)}] 逾時略過：{code} {name}")
-            except Exception as exc:
-                print(f"[{idx}/{len(pending)}] 失敗：{code} {name} -> {exc}")
+                while not queue.empty():
+                    try:
+                        idx, item = queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
 
-            if idx % 10 == 0:
-                save_json(PRODUCT_DETAILS_PATH, details)
+                    code = item["cfpl_code"]
+                    name = item["product_name"]
+                    parsed = None
+                    last_err = None
+                    for attempt in range(3):
+                        try:
+                            parsed = await scrape_one_product(page, item, ban_by_code, ban_by_company)
+                            if parsed:
+                                break
+                        except Exception as exc:
+                            last_err = exc
+                            await asyncio.sleep(1.0)
 
-            time.sleep(args.delay)
+                    async with lock:
+                        stats["done"] += 1
+                        if parsed:
+                            details[code] = parsed
+                            stats["success"] += 1
+                            print(f"[{stats['done']}/{len(pending)}][W{worker_id}] 成功：{code} {name}（{parsed.get('狀態', '')}）")
+                        else:
+                            stats["failed"] += 1
+                            print(f"[{stats['done']}/{len(pending)}][W{worker_id}] 失敗略過：{code} {name} -> {last_err}")
+
+                        if stats["done"] % 20 == 0:
+                            save_json(PRODUCT_DETAILS_PATH, details)
+
+                    await asyncio.sleep(args.delay)
+            finally:
+                await page.close()
+
+        workers = [asyncio.create_task(worker(i + 1)) for i in range(max(1, args.workers))]
+        await asyncio.gather(*workers)
 
         save_json(PRODUCT_DETAILS_PATH, details)
-        browser.close()
+        sync_products_and_metadata(all_items, details, existing_by_code, ban_by_code, ban_by_company)
+        await browser.close()
 
-    print(f"完成！本次新增/更新 {success} 筆，累計 {len(details)} 筆已存至 {PRODUCT_DETAILS_PATH}。")
+    print(
+        f"完成！本次新增/更新 {stats['success']} 筆，失敗 {stats['failed']} 筆，"
+        f"累計 {len(details)} / {len(all_items)} 筆已存至 {PRODUCT_DETAILS_PATH}。"
+    )
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="本機抓取環境部 CFP_P_01 全量（約 2,201 筆）碳標籤產品與細部資料")
+    parser.add_argument("--limit", type=int, default=0, help="限制本次最多抓取筆數（0 表示全部）")
+    parser.add_argument("--workers", type=int, default=4, help="並發瀏覽器分頁數（預設 4）")
+    parser.add_argument("--delay", type=float, default=0.3, help="每筆間隔秒數")
+    parser.add_argument("--headless", action="store_true", help="使用無頭模式執行")
+    parser.add_argument("--refresh", action="store_true", help="重新抓取已存在的項目")
+    args = parser.parse_args()
+    return asyncio.run(run_async(args))
 
 
 if __name__ == "__main__":

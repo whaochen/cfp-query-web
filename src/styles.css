@@ -1116,6 +1116,57 @@ body {
   white-space: pre-line;
 }
 
+.filter-row-gap {
+  margin-bottom: 12px;
+}
+
+.filter-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.filter-grid-5 {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.checkbox-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  font-size: 0.86rem;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-filter input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+@media (max-width: 1024px) {
+  .filter-grid-5 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-grid-3,
+  .filter-grid-5 {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ISO 14067 Lifecycle Guidance */
 .lifecycle-card {
   margin-bottom: 16px;
