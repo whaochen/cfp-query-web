@@ -1167,93 +1167,23 @@ body {
   }
 }
 
-/* ISO 14067 Lifecycle Guidance */
-.lifecycle-card {
-  margin-bottom: 16px;
-  padding: 16px 18px;
+/* Advanced Filters Accordion */
+.advanced-filters {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
 }
 
-.lifecycle-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.lifecycle-eyebrow {
-  display: inline-block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--primary-text);
-  background: var(--primary-soft);
-  padding: 2px 8px;
-  border-radius: 999px;
-  margin-bottom: 4px;
-}
-
-.lifecycle-title {
-  margin: 0;
-  font-size: 0.98rem;
-  font-weight: 600;
-}
-
-.lifecycle-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.lifecycle-btn {
-  appearance: none;
-  text-align: left;
-  background: var(--surface-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
+.advanced-filters summary {
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.lifecycle-btn:hover {
-  border-color: var(--primary);
-  background: #ffffff;
-}
-
-.lifecycle-btn.active {
-  border-color: var(--primary);
-  background: var(--primary-soft);
-  box-shadow: 0 0 0 1px var(--primary);
-}
-
-.lifecycle-btn-title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.lifecycle-btn.active .lifecycle-btn-title {
-  color: var(--primary-text);
-}
-
-.lifecycle-btn-desc {
-  font-size: 0.76rem;
-  color: var(--text-muted);
-  line-height: 1.4;
-}
-
-.lifecycle-tip {
-  margin-top: 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
   font-size: 0.84rem;
-  line-height: 1.5;
+  font-weight: 600;
+  color: var(--primary-text);
+  user-select: none;
+}
+
+.advanced-filters-body {
+  margin-top: 10px;
 }
 
 /* Combined Search */
@@ -1398,17 +1328,7 @@ body {
   color: var(--text-light);
 }
 
-@media (max-width: 1024px) {
-  .lifecycle-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 768px) {
-  .lifecycle-grid {
-    grid-template-columns: 1fr;
-  }
-
   .mrv-fields-grid {
     grid-template-columns: 1fr;
   }

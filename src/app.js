@@ -1,6 +1,5 @@
 const state = {
   activeTab: "combined",
-  lifecycleStage: "",
   combinedQuery: "",
   currentPrintPayload: null,
   metadata: null,
@@ -50,11 +49,6 @@ const els = {
   panelCombined: document.getElementById("panel-combined"),
   panelFactors: document.getElementById("panel-factors"),
   panelProducts: document.getElementById("panel-products"),
-
-  lifecycleGuide: document.getElementById("lifecycle-guide"),
-  lifecycleStages: document.getElementById("lifecycle-stages"),
-  lifecycleTip: document.getElementById("lifecycle-tip"),
-  btnClearStage: document.getElementById("btn-clear-stage"),
 
   combinedSearch: document.getElementById("combined-search"),
   combinedResetFilters: document.getElementById("combined-reset-filters"),
@@ -242,8 +236,6 @@ function switchTab(tabName) {
   els.tabBtnProducts.classList.toggle("active", isProducts);
   els.tabBtnProducts.setAttribute("aria-selected", String(isProducts));
   els.panelProducts.hidden = !isProducts;
-
-  els.lifecycleGuide.hidden = isProducts;
 }
 
 function updateCalculator() {
@@ -414,121 +406,12 @@ function fuzzyMultiKeywordSearch(fuseInstance, allItems, query) {
     .map(([item]) => item);
 }
 
-const LIFECYCLE_STAGES = [
-  {
-    id: "raw_material",
-    title: "原料取得",
-    desc: "原物料、化學品、農產品、包材、再生料",
-    tip: "盤查提示：原物料與包材係數的系統邊界多為「搖籃到大門 (Cradle-to-Gate)」，引用時請確認是否已含上游運輸，避免與運輸階段重複計算。",
-  },
-  {
-    id: "manufacturing",
-    title: "製造與能源",
-    desc: "電力、蒸氣、固定源燃料、工業用水",
-    tip: "盤查提示：能源與公用流體請留意區分「直接燃燒排放（範疇一）」與「電力／蒸氣外購及上游開採（範疇二／範疇三類別 3）」之邊界差異。",
-  },
-  {
-    id: "transport",
-    title: "配送與運輸",
-    desc: "公路／水路／鐵路／空運、移動源燃料",
-    tip: "盤查提示：運輸服務係數多以「延噸公里 (t-km)」或「延人公里 (pkm)」為宣告單位，移動源燃料則多為「公升 (L)」，換算活動數據時請核對單位。",
-  },
-  {
-    id: "use",
-    title: "使用階段",
-    desc: "產品耗能、耗材與維護",
-    tip: "盤查提示：使用階段係數需搭配產品壽命、耗電量或耗材更換頻率進行情境假設，並留意服務類項目之時間／人次基準。",
-  },
-  {
-    id: "eol",
-    title: "廢棄與回收",
-    desc: "事業廢棄物掩埋／焚化、廢水與回收處理服務",
-    tip: "盤查提示：廢棄物處理係數通常不包含運送至處理廠的運輸排放，且回收再生料應依循「截斷法 (Cut-off)」或「系統擴張」原則避免重複扣減。",
-  },
-];
-
-function getLifecycleStageMeta(stageId) {
-  return LIFECYCLE_STAGES.find((s) => s.id === stageId) || null;
-}
-
-function matchesLifecycleStage(factor, stageId) {
-  if (!stageId) return true;
-  const text = `${factor.name || ""} ${factor.unit || ""} ${factor.department || ""}`;
-  const iso = factor._isoTokens || [];
-  const ghg = factor._ghgTokens || [];
-
-  const isEol =
-    iso.some((t) => t.includes("4.4") || t.includes("5.3")) ||
-    ghg.some((t) => t === "類別5" || t === "類別12") ||
-    /廢棄物|掩埋|焚化|廢水|污水|資源化|回收處理|堆肥|污泥/.test(text);
-
-  const isTransport =
-    iso.some((t) => ["類別3.1", "類別3.2", "類別3.3", "類別3.4", "類別3.5"].includes(t)) ||
-    ghg.some((t) => ["類別4", "類別6", "類別7", "類別9"].includes(t)) ||
-    /tkm|pkm|TEU-km|延噸公里|延人公里|貨運|海運|空運|鐵路|高鐵|捷運|公車|計程車|卡車|貨車|航空|船舶|運輸/.test(text);
-
-  const isManufacturing =
-    ghg.includes("類別3") ||
-    iso.includes("類別4.3") ||
-    /電力|電網|蒸氣|蒸汽|自來水|工業用水|純水|天然氣|柴油|汽油|重油|燃料油|液化石油氣|煤炭|鍋爐|壓縮空氣|冷凍|度\(kwh\)/.test(text);
-
-  const isUse =
-    iso.some((t) => ["類別4.5", "類別5.1", "類別5.2"].includes(t)) ||
-    ghg.some((t) => ["類別8", "類別11", "類別13"].includes(t)) ||
-    /使用階段|維護|清潔|洗滌|設備|照明|空調|影印|列印|餐飲|住宿|旅遊|每人每餐/.test(text);
-
-  if (stageId === "eol") return isEol;
-  if (stageId === "transport") return isTransport;
-  if (stageId === "manufacturing") return isManufacturing;
-  if (stageId === "use") return isUse;
-  if (stageId === "raw_material") {
-    return !isEol && !isTransport && !isManufacturing && !isUse;
-  }
-  return true;
-}
-
 function getFactorBoundaryTag(factor) {
   const detail = findFactorDetail(factor.name);
   if (!detail) return "";
   const raw = pickDetailField(detail, ["生命週期範疇(系統邊界)", "生命週期範疇"]);
   if (!raw) return "";
   return raw.replace(/\s*\([^)]*\)\s*/g, "").trim() || raw;
-}
-
-function renderLifecycleGuide() {
-  if (!els.lifecycleStages) return;
-  els.lifecycleStages.innerHTML = LIFECYCLE_STAGES.map((stage) => {
-    const active = state.lifecycleStage === stage.id;
-    return `
-      <button
-        type="button"
-        class="lifecycle-btn${active ? " active" : ""}"
-        data-stage="${stage.id}"
-        aria-pressed="${String(active)}"
-      >
-        <span class="lifecycle-btn-title">${escapeHtml(stage.title)}</span>
-        <span class="lifecycle-btn-desc">${escapeHtml(stage.desc)}</span>
-      </button>
-    `;
-  }).join("");
-
-  const activeMeta = getLifecycleStageMeta(state.lifecycleStage);
-  els.btnClearStage.hidden = !activeMeta;
-  if (activeMeta) {
-    els.lifecycleTip.textContent = activeMeta.tip;
-    els.lifecycleTip.hidden = false;
-  } else {
-    els.lifecycleTip.textContent = "";
-    els.lifecycleTip.hidden = true;
-  }
-}
-
-function setLifecycleStage(stageId) {
-  state.lifecycleStage = state.lifecycleStage === stageId ? "" : stageId;
-  state.factorsFilter.page = 1;
-  renderLifecycleGuide();
-  renderFactors();
-  renderCombined();
 }
 
 function buildMrvPrompt(keyword, unit, boundary, geoYear) {
@@ -617,7 +500,6 @@ function getFilteredFactors(overrideQuery = null) {
   const baseList = fuzzyMultiKeywordSearch(state.factorsFuse, state.factors, query);
 
   return baseList.filter((item) => {
-    if (!matchesLifecycleStage(item, state.lifecycleStage)) return false;
     if (overrideQuery === null) {
       if (majorCat && item._majorCategory !== majorCat) return false;
       if (cat && item._category !== cat) return false;
@@ -1001,9 +883,7 @@ function renderCombined() {
   const factorsMatched = getFilteredFactors(query);
   const productsMatched = query
     ? fuzzyMultiKeywordSearch(state.productsFuse, state.products, query)
-    : state.lifecycleStage
-      ? []
-      : state.products;
+    : state.products;
 
   if (factorsMatched.length === 0 && productsMatched.length === 0) {
     els.combinedResults.innerHTML = `
@@ -1042,9 +922,7 @@ function renderCombined() {
     </section>
   `;
 
-  const tier2Hint = state.lifecycleStage && !query
-    ? `<p class="empty-state-text">已選取生命週期階段篩選（主要對應 Tier 1 排放係數）；若要對標碳標籤產品，請輸入關鍵字或切換至「碳標籤產品查詢」分頁。</p>`
-    : `<p class="empty-state-text">此條件下無符合的 Tier 2 碳標籤產品。</p>`;
+  const tier2Hint = `<p class="empty-state-text">此條件下無符合的 Tier 2 碳標籤產品。</p>`;
 
   const tier2Html = `
     <section class="combined-section" aria-label="Tier 2 碳標籤產品結果">
@@ -1472,20 +1350,6 @@ function bindEvents() {
   els.tabBtnFactors.addEventListener("click", () => switchTab("factors"));
   els.tabBtnProducts.addEventListener("click", () => switchTab("products"));
 
-  els.lifecycleStages.addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-stage]");
-    if (!btn) return;
-    setLifecycleStage(btn.getAttribute("data-stage"));
-  });
-
-  els.btnClearStage.addEventListener("click", () => {
-    state.lifecycleStage = "";
-    state.factorsFilter.page = 1;
-    renderLifecycleGuide();
-    renderFactors();
-    renderCombined();
-  });
-
   els.combinedSearch.addEventListener("input", (e) => {
     state.combinedQuery = e.target.value;
     renderCombined();
@@ -1493,11 +1357,8 @@ function bindEvents() {
 
   els.combinedResetFilters.addEventListener("click", () => {
     state.combinedQuery = "";
-    state.lifecycleStage = "";
     els.combinedSearch.value = "";
-    renderLifecycleGuide();
     renderCombined();
-    renderFactors();
   });
 
   els.combinedResults.addEventListener("click", (e) => {
@@ -1608,7 +1469,6 @@ function bindEvents() {
     state.factorsFilter.iso = "";
     state.factorsFilter.ghg = "";
     state.factorsFilter.page = 1;
-    state.lifecycleStage = "";
     els.factorsSearch.value = "";
     els.filterMajorCat.value = "";
     els.filterCat.value = "";
@@ -1619,9 +1479,7 @@ function bindEvents() {
     els.filterIso.value = "";
     els.filterGhg.value = "";
     updateFactorCategoryCascades();
-    renderLifecycleGuide();
     renderFactors();
-    renderCombined();
   });
 
   els.factorsResults.addEventListener("click", (e) => {
@@ -1905,7 +1763,6 @@ async function init() {
 
     populateFactorFilterOptions();
     populateProductFilterOptions();
-    renderLifecycleGuide();
     renderCombined();
     renderFactors();
     renderProducts();

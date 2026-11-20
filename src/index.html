@@ -91,19 +91,6 @@
         </button>
       </nav>
 
-      <!-- ISO 14067 生命週期情境引導（適用於綜合查詢與排放係數分頁） -->
-      <section id="lifecycle-guide" class="card lifecycle-card" aria-label="ISO 14067 生命週期情境引導">
-        <div class="lifecycle-header">
-          <div>
-            <span class="lifecycle-eyebrow">ISO 14067 盤查情境引導</span>
-            <h2 class="lifecycle-title">依生命週期階段快速篩選常用係數</h2>
-          </div>
-          <button id="btn-clear-stage" type="button" class="btn btn-ghost btn-xs" hidden>清除階段篩選</button>
-        </div>
-        <div id="lifecycle-stages" class="lifecycle-grid" role="group" aria-label="五大生命週期階段"></div>
-        <div id="lifecycle-tip" class="lifecycle-tip" hidden></div>
-      </section>
-
       <!-- 分頁零：綜合查詢 (Tier 1 + Tier 2) -->
       <section id="panel-combined" class="tab-panel active" role="tabpanel" aria-labelledby="tab-btn-combined">
         <section class="card filter-card" aria-label="綜合關鍵字查詢">
@@ -217,38 +204,41 @@
             </div>
           </div>
 
-          <div class="filter-grid-5">
-            <div class="filter-field">
-              <label for="filter-year">公告年份</label>
-              <select id="filter-year">
-                <option value="">全部年份</option>
-              </select>
+          <details class="advanced-filters">
+            <summary>進階篩選（公告年份、宣告單位、生命週期範疇、範疇三類別）</summary>
+            <div class="filter-grid-5 advanced-filters-body">
+              <div class="filter-field">
+                <label for="filter-year">公告年份</label>
+                <select id="filter-year">
+                  <option value="">全部年份</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="filter-unit">宣告單位</label>
+                <select id="filter-unit">
+                  <option value="">全部單位</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="filter-boundary">生命週期範疇</label>
+                <select id="filter-boundary">
+                  <option value="">全部系統邊界</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="filter-iso">ISO 14064-1 範疇三</label>
+                <select id="filter-iso">
+                  <option value="">全部類別</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="filter-ghg">GHG Protocol 範疇三</label>
+                <select id="filter-ghg">
+                  <option value="">全部類別</option>
+                </select>
+              </div>
             </div>
-            <div class="filter-field">
-              <label for="filter-unit">宣告單位</label>
-              <select id="filter-unit">
-                <option value="">全部單位</option>
-              </select>
-            </div>
-            <div class="filter-field">
-              <label for="filter-boundary">生命週期範疇</label>
-              <select id="filter-boundary">
-                <option value="">全部系統邊界</option>
-              </select>
-            </div>
-            <div class="filter-field">
-              <label for="filter-iso">ISO 14064-1 範疇三</label>
-              <select id="filter-iso">
-                <option value="">全部類別</option>
-              </select>
-            </div>
-            <div class="filter-field">
-              <label for="filter-ghg">GHG Protocol 範疇三</label>
-              <select id="filter-ghg">
-                <option value="">全部類別</option>
-              </select>
-            </div>
-          </div>
+          </details>
         </section>
 
         <!-- 結果工具列 -->
