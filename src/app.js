@@ -1,5 +1,6 @@
 const state = {
   activeTab: "combined",
+  activeOnboardingTask: "",
   combinedQuery: "",
   currentPrintPayload: null,
   metadata: null,
@@ -7,6 +8,7 @@ const state = {
   details: {},
   detailsNormalizedMap: new Map(),
   productDetails: {},
+  expertTips: [],
   factors: [],
   products: [],
   factorsFuse: null,
@@ -50,8 +52,14 @@ const els = {
   panelFactors: document.getElementById("panel-factors"),
   panelProducts: document.getElementById("panel-products"),
 
+  onboardingGuide: document.getElementById("onboarding-guide"),
+  onboardingBody: document.getElementById("onboarding-body"),
+  btnToggleOnboarding: document.getElementById("btn-toggle-onboarding"),
+  onboardingContextBar: document.getElementById("onboarding-context-bar"),
+
   combinedSearch: document.getElementById("combined-search"),
   combinedResetFilters: document.getElementById("combined-reset-filters"),
+  combinedExpertTips: document.getElementById("combined-expert-tips"),
   combinedResults: document.getElementById("combined-results"),
 
   calcSelectedName: document.getElementById("calc-selected-name"),
@@ -74,6 +82,7 @@ const els = {
   factorsResetFilters: document.getElementById("factors-reset-filters"),
   factorsSummary: document.getElementById("factors-summary"),
   factorsPageSize: document.getElementById("factors-page-size"),
+  factorsExpertTips: document.getElementById("factors-expert-tips"),
   factorsResults: document.getElementById("factors-results"),
   factorsPagination: document.getElementById("factors-pagination"),
 
@@ -406,6 +415,187 @@ function fuzzyMultiKeywordSearch(fuseInstance, allItems, query) {
     .map(([item]) => item);
 }
 
+const ONBOARDING_STORAGE_KEY = "cfp_onboarding_collapsed";
+
+function setOnboardingCollapsed(collapsed) {
+  if (!els.onboardingBody || !els.btnToggleOnboarding) return;
+  els.onboardingBody.hidden = collapsed;
+  els.btnToggleOnboarding.textContent = collapsed ? "展開引導" : "收合引導";
+  els.btnToggleOnboarding.setAttribute("aria-expanded", String(!collapsed));
+  try {
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, collapsed ? "1" : "0");
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function initOnboardingState() {
+  let collapsed = false;
+  try {
+    collapsed = localStorage.getItem(ONBOARDING_STORAGE_KEY) === "1";
+  } catch {
+    collapsed = false;
+  }
+  setOnboardingCollapsed(collapsed);
+}
+
+function resetFactorFilterStateOnly() {
+  state.factorsFilter.query = "";
+  state.factorsFilter.majorCat = "";
+  state.factorsFilter.cat = "";
+  state.factorsFilter.subCat = "";
+  state.factorsFilter.year = "";
+  state.factorsFilter.unit = "";
+  state.factorsFilter.boundary = "";
+  state.factorsFilter.iso = "";
+  state.factorsFilter.ghg = "";
+  state.factorsFilter.page = 1;
+  els.factorsSearch.value = "";
+  els.filterMajorCat.value = "";
+  els.filterCat.value = "";
+  els.filterSubCat.value = "";
+  els.filterYear.value = "";
+  els.filterUnit.value = "";
+  els.filterBoundary.value = "";
+  els.filterIso.value = "";
+  els.filterGhg.value = "";
+}
+
+function resetProductFilterStateOnly() {
+  state.productsFilter.query = "";
+  state.productsFilter.pcr = "";
+  state.productsFilter.labelType = "";
+  state.productsFilter.productType = "";
+  state.productsFilter.validity = "";
+  state.productsFilter.greenOnly = false;
+  state.productsFilter.sort = "default";
+  state.productsFilter.page = 1;
+  els.productsSearch.value = "";
+  els.filterPcr.value = "";
+  els.filterLabelType.value = "";
+  els.filterProductType.value = "";
+  els.filterValidity.value = "";
+  els.filterGreenOnly.checked = false;
+  els.sortExpired.value = "default";
+}
+
+function applyOnboardingTask(taskId) {
+  state.activeOnboardingTask = taskId;
+  if (els.onboardingGuide) {
+    els.onboardingGuide.querySelectorAll(".onboarding-task-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.getAttribute("data-onboarding-task") === taskId);
+    });
+  }
+
+  if (taskId === "energy") {
+    switchTab("factors");
+    resetFactorFilterStateOnly();
+    state.factorsFilter.majorCat = "能源類";
+    state.factorsFilter.cat = "能資源";
+    els.filterMajorCat.value = "能源類";
+    updateFactorCategoryCascades();
+    els.filterCat.value = "能資源";
+    updateFactorCategoryCascades();
+    renderFactors();
+
+    const chips = ["電力", "天然氣", "柴油", "汽油", "自來水"]
+      .map((kw) => `<button type="button" class="quick-chip-btn" data-quick-keyword="${escapeHtml(kw)}" data-quick-target="factors">${escapeHtml(kw)}</button>`)
+      .join("");
+    els.onboardingContextBar.innerHTML = `
+      <div>已切換至 <strong>排放係數查詢（CFP_P_02）</strong> 並篩選 <strong>能源類 › 能資源</strong>，可直接點選常用能源捷徑：</div>
+      <div class="quick-chips-row"><span class="quick-chips-label">常用能源捷徑：</span>${chips}</div>
+    `;
+    els.onboardingContextBar.hidden = false;
+    return;
+  }
+
+  if (taskId === "materials") {
+    switchTab("factors");
+    resetFactorFilterStateOnly();
+    updateFactorCategoryCascades();
+    renderFactors();
+
+    const chips = ["塑膠", "再生", "瓦楞紙箱", "運輸", "廢棄物"]
+      .map((kw) => `<button type="button" class="quick-chip-btn" data-quick-keyword="${escapeHtml(kw)}" data-quick-target="factors">${escapeHtml(kw)}</button>`)
+      .join("");
+    els.onboardingContextBar.innerHTML = `
+      <div class="onboarding-checklist">
+        <span><strong>4 步挑對係數檢查清單：</strong></span>
+        <span>① 搜俗稱／材質</span>
+        <span>② 核對單位（kg / m² / t-km）</span>
+        <span>③ 點開細部資料看系統邊界與 GWP</span>
+        <span>④ 點試算或匯出 PDF</span>
+      </div>
+      <div class="quick-chips-row"><span class="quick-chips-label">常用捷徑：</span>${chips}</div>
+    `;
+    els.onboardingContextBar.hidden = false;
+    return;
+  }
+
+  if (taskId === "products") {
+    switchTab("products");
+    resetProductFilterStateOnly();
+    state.productsFilter.validity = "valid";
+    els.filterValidity.value = "valid";
+    renderProducts();
+
+    els.onboardingContextBar.innerHTML = `
+      <div>已切換至 <strong>碳標籤產品查詢（CFP_P_01）</strong> 並鎖定 <strong>有效</strong> 證書。小提示：<strong>R</strong> 開頭證書編號為減碳標籤，可用產品名稱、型號、業者或統一編號搜尋。</div>
+    `;
+    els.onboardingContextBar.hidden = false;
+  }
+}
+
+function matchExpertTips(query) {
+  const normQuery = normalizeSearchText(query).trim();
+  if (!normQuery || !Array.isArray(state.expertTips) || state.expertTips.length === 0) {
+    return [];
+  }
+  return state.expertTips.filter((tip) => {
+    const keywords = Array.isArray(tip.keywords) ? tip.keywords : [];
+    return keywords.some((kw) => {
+      const normKw = normalizeSearchText(kw).trim();
+      return normKw && normQuery.includes(normKw);
+    });
+  });
+}
+
+function renderExpertTips(container, query, targetMode) {
+  if (!container) return;
+  const matched = matchExpertTips(query);
+  if (matched.length === 0) {
+    container.innerHTML = "";
+    container.hidden = true;
+    return;
+  }
+
+  container.innerHTML = matched
+    .map((tip) => {
+      const chips = (Array.isArray(tip.suggested_keywords) ? tip.suggested_keywords : [])
+        .map(
+          (kw) =>
+            `<button type="button" class="expert-chip-btn" data-tip-keyword="${escapeHtml(kw)}" data-tip-target="${escapeHtml(targetMode)}">${escapeHtml(kw)}</button>`
+        )
+        .join("");
+      return `
+        <aside class="expert-tip-card" data-tip-id="${escapeHtml(tip.id || "")}">
+          <div class="expert-tip-header">
+            <span class="expert-tip-badge">實務選用提醒</span>
+            <h3 class="expert-tip-title">${escapeHtml(tip.title || "")}</h3>
+          </div>
+          <p class="expert-tip-summary">${escapeHtml(tip.summary || "")}</p>
+          ${
+            chips
+              ? `<div class="quick-chips-row"><span class="quick-chips-label">建議精準關鍵字：</span>${chips}</div>`
+              : ""
+          }
+        </aside>
+      `;
+    })
+    .join("");
+  container.hidden = false;
+}
+
 function getFactorBoundaryTag(factor) {
   const detail = findFactorDetail(factor.name);
   if (!detail) return "";
@@ -667,6 +857,7 @@ function buildFactorResultsMarkup(items) {
 }
 
 function renderFactors() {
+  renderExpertTips(els.factorsExpertTips, state.factorsFilter.query, "factors");
   const filtered = getFilteredFactors();
   const total = filtered.length;
   const { pageSize } = state.factorsFilter;
@@ -880,6 +1071,7 @@ function renderProducts() {
 function renderCombined() {
   if (!els.combinedResults) return;
   const query = state.combinedQuery.trim();
+  renderExpertTips(els.combinedExpertTips, query, "combined");
   const factorsMatched = getFilteredFactors(query);
   const productsMatched = query
     ? fuzzyMultiKeywordSearch(state.productsFuse, state.products, query)
@@ -1350,6 +1542,53 @@ function bindEvents() {
   els.tabBtnFactors.addEventListener("click", () => switchTab("factors"));
   els.tabBtnProducts.addEventListener("click", () => switchTab("products"));
 
+  if (els.btnToggleOnboarding) {
+    els.btnToggleOnboarding.addEventListener("click", () => {
+      setOnboardingCollapsed(!els.onboardingBody.hidden);
+    });
+  }
+
+  if (els.onboardingGuide) {
+    els.onboardingGuide.addEventListener("click", (e) => {
+      const taskBtn = e.target.closest("button[data-onboarding-task]");
+      if (taskBtn) {
+        applyOnboardingTask(taskBtn.getAttribute("data-onboarding-task"));
+        return;
+      }
+      const chipBtn = e.target.closest("button[data-quick-keyword]");
+      if (chipBtn) {
+        const kw = chipBtn.getAttribute("data-quick-keyword") || "";
+        const target = chipBtn.getAttribute("data-quick-target") || "factors";
+        if (target === "factors") {
+          switchTab("factors");
+          state.factorsFilter.query = kw;
+          state.factorsFilter.page = 1;
+          els.factorsSearch.value = kw;
+          renderFactors();
+        }
+      }
+    });
+  }
+
+  const handleExpertTipClick = (e) => {
+    const btn = e.target.closest("button[data-tip-keyword]");
+    if (!btn) return;
+    const kw = btn.getAttribute("data-tip-keyword") || "";
+    const target = btn.getAttribute("data-tip-target") || "factors";
+    if (target === "combined") {
+      state.combinedQuery = kw;
+      els.combinedSearch.value = kw;
+      renderCombined();
+    } else {
+      state.factorsFilter.query = kw;
+      state.factorsFilter.page = 1;
+      els.factorsSearch.value = kw;
+      renderFactors();
+    }
+  };
+  if (els.factorsExpertTips) els.factorsExpertTips.addEventListener("click", handleExpertTipClick);
+  if (els.combinedExpertTips) els.combinedExpertTips.addEventListener("click", handleExpertTipClick);
+
   els.combinedSearch.addEventListener("input", (e) => {
     state.combinedQuery = e.target.value;
     renderCombined();
@@ -1592,17 +1831,20 @@ function parseFootprintToKg(raw) {
 }
 
 async function init() {
+  initOnboardingState();
   bindEvents();
   try {
-    const [metadata, factorsRaw, productsRaw, detailsRaw, productDetailsRaw] = await Promise.all([
+    const [metadata, factorsRaw, productsRaw, detailsRaw, productDetailsRaw, expertTipsRaw] = await Promise.all([
       fetchJson("/data/metadata.json"),
       fetchJson("/data/cfp_factors.json"),
       fetchJson("/data/cfp_products.json"),
       fetchOptionalJson("/data/cfp_details.json", {}),
       fetchOptionalJson("/data/cfp_product_details.json", {}),
+      fetchOptionalJson("/data/expert_tips.json", []),
     ]);
 
     state.metadata = metadata;
+    state.expertTips = Array.isArray(expertTipsRaw) ? expertTipsRaw : [];
     state.details = detailsRaw && typeof detailsRaw === "object" && !Array.isArray(detailsRaw) ? detailsRaw : {};
     state.detailsNormalizedMap = new Map(
       Object.entries(state.details).map(([k, v]) => [normalizeSearchText(k), v])

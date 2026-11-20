@@ -1186,6 +1186,235 @@ body {
   margin-top: 10px;
 }
 
+/* Onboarding 3-Second Quick-Start Guide */
+.onboarding-card {
+  margin-bottom: 16px;
+  padding: 14px 18px;
+}
+
+.onboarding-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.onboarding-title-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.onboarding-eyebrow {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--primary-text);
+  background: var(--primary-soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.onboarding-title {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.onboarding-body {
+  margin-top: 12px;
+}
+
+.onboarding-body[hidden] {
+  display: none;
+}
+
+.onboarding-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.onboarding-task-btn {
+  appearance: none;
+  text-align: left;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.onboarding-task-btn:hover {
+  border-color: var(--primary);
+  background: #ffffff;
+}
+
+.onboarding-task-btn.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.onboarding-task-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--primary-text);
+}
+
+.onboarding-task-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.onboarding-task-desc {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.onboarding-context-bar {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #14532d;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onboarding-context-bar[hidden] {
+  display: none;
+}
+
+.onboarding-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.quick-chips-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quick-chips-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
+.quick-chip-btn {
+  appearance: none;
+  border: 1px solid #86efac;
+  background: #ffffff;
+  color: #166534;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.quick-chip-btn:hover {
+  background: #dcfce7;
+  border-color: #22c55e;
+}
+
+/* Expert Guardrail Tips */
+.expert-tips-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.expert-tips-wrap[hidden] {
+  display: none;
+}
+
+.expert-tip-card {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 4px solid #d97706;
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+}
+
+.expert-tip-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.expert-tip-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.expert-tip-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #78350f;
+}
+
+.expert-tip-summary {
+  margin: 0 0 8px;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: #78350f;
+}
+
+.expert-chip-btn {
+  appearance: none;
+  border: 1px solid #f59e0b;
+  background: #ffffff;
+  color: #92400e;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.expert-chip-btn:hover {
+  background: #fef3c7;
+}
+
+@media (max-width: 768px) {
+  .onboarding-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Combined Search */
 .combined-results {
   display: flex;

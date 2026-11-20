@@ -54,6 +54,40 @@
 
     <!-- 主內容區 -->
     <main class="container main-content">
+      <!-- 3 秒任務起步引導列 -->
+      <section id="onboarding-guide" class="card onboarding-card" aria-label="任務起步引導">
+        <div class="onboarding-header">
+          <div class="onboarding-title-group">
+            <span class="onboarding-eyebrow">3 秒起步引導</span>
+            <h2 class="onboarding-title">不知道從哪裡開始？依您的任務直接開始</h2>
+          </div>
+          <button id="btn-toggle-onboarding" type="button" class="btn btn-ghost btn-xs" aria-expanded="true" aria-controls="onboarding-body">
+            收合引導
+          </button>
+        </div>
+
+        <div id="onboarding-body" class="onboarding-body">
+          <div class="onboarding-grid">
+            <button type="button" class="onboarding-task-btn" data-onboarding-task="energy">
+              <span class="onboarding-task-tag">ISO 14064-1 / 能源係數</span>
+              <strong class="onboarding-task-title">算公司用電、瓦斯、油料碳排</strong>
+              <span class="onboarding-task-desc">前往 CFP_P_02 並篩選「能資源」，附常用能源捷徑</span>
+            </button>
+            <button type="button" class="onboarding-task-btn" data-onboarding-task="materials">
+              <span class="onboarding-task-tag">產品碳足跡 / 範疇三</span>
+              <strong class="onboarding-task-title">找產品原料、包材、運輸或廢棄物係數</strong>
+              <span class="onboarding-task-desc">前往 CFP_P_02 並展開 4 步挑對係數檢查清單與常用捷徑</span>
+            </button>
+            <button type="button" class="onboarding-task-btn" data-onboarding-task="products">
+              <span class="onboarding-task-tag">CFP_P_01 / 綠色採購</span>
+              <strong class="onboarding-task-title">查市售商品碳標籤／減碳標籤</strong>
+              <span class="onboarding-task-desc">前往 CFP_P_01 並自動鎖定「有效」證書對標參考</span>
+            </button>
+          </div>
+          <div id="onboarding-context-bar" class="onboarding-context-bar" hidden></div>
+        </div>
+      </section>
+
       <!-- 三分頁切換 -->
       <nav class="tabs-nav" role="tablist" aria-label="資料集查詢分頁">
         <button
@@ -111,6 +145,7 @@
           </div>
         </section>
 
+        <div id="combined-expert-tips" class="expert-tips-wrap" hidden></div>
         <div id="combined-results" class="combined-results"></div>
       </section>
 
@@ -253,6 +288,9 @@
             </select>
           </div>
         </div>
+
+        <!-- 顧問級防呆提示層 -->
+        <div id="factors-expert-tips" class="expert-tips-wrap" hidden></div>
 
         <!-- 排放係數資料呈現區 -->
         <div id="factors-results" class="results-container"></div>
