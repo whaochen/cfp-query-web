@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>環境部碳足跡查詢系統 | CFP_P_02 &amp; CFP_P_01</title>
+  <title>[06 C] 台灣環境部碳足跡查詢系統｜晧脈元素庫</title>
   <meta name="description" content="環境部環境資料開放平臺碳足跡排放係數 (CFP_P_02) 與台灣產品碳足跡資訊 (CFP_P_01) 即時查詢與試算系統" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,15 +16,14 @@
     <header class="top-header">
       <div class="container header-inner">
         <div class="brand">
-          <div class="brand-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
-              <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-            </svg>
+          <div class="element-badge" aria-hidden="true">
+            <span class="element-num">06</span>
+            <span class="element-symbol">C</span>
+            <span class="element-name">Carbon</span>
           </div>
-          <div>
-            <h1>環境部碳足跡查詢系統</h1>
-            <p class="subtitle">MOENV Carbon Footprint Open Data Explorer</p>
+          <div class="brand-text">
+            <h1>台灣環境部碳足跡查詢系統</h1>
+            <p class="subtitle">晧脈元素庫 · 環境部 CFP_P_02 &amp; CFP_P_01</p>
           </div>
         </div>
 
@@ -48,6 +47,20 @@
             </svg>
             更新紀錄
           </button>
+          <a
+            id="btn-back-hub"
+            href="https://hao-element-matrix.pages.dev/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-outline btn-sm btn-hub-link"
+          >
+            <span>✦ 返回晧脈元素庫</span>
+            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </a>
         </div>
       </div>
     </header>
@@ -392,11 +405,15 @@
     <!-- 頁尾 -->
     <footer class="site-footer">
       <div class="container footer-inner">
+        <p class="footer-brand">
+          <a href="https://hao-element-matrix.pages.dev/" target="_blank" rel="noopener noreferrer"><strong>晧脈元素庫</strong></a>
+          · #06 C 碳足跡與永續系統
+        </p>
         <p>
           資料來源：<a href="https://data.moenv.gov.tw/" target="_blank" rel="noopener noreferrer">環境部環境資料開放平臺</a>
-          （CFP_P_02 碳足跡排放係數、CFP_P_01 台灣產品碳足跡資訊）
+          （CFP_P_02 碳足跡排放係數、CFP_P_01 台灣產品碳足跡資訊）與
+          <a href="https://cfp.moenv.gov.tw/" target="_blank" rel="noopener noreferrer">產品碳足跡資訊網</a>
         </p>
-        <p class="footer-note">本系統為純靜態前端查詢工具，每週自動同步最新開放資料。</p>
       </div>
     </footer>
   </div>
