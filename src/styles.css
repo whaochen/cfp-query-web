@@ -169,6 +169,19 @@ body {
   flex-shrink: 0;
 }
 
+.footer-badge-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+hao-element-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .footer-brand {
   font-weight: 500;
   color: var(--text);
