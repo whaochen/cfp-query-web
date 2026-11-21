@@ -70,10 +70,127 @@ body {
 
 .header-inner {
   display: flex;
-  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.header-left {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+}
+
+.header-pulse-card {
+  flex: 0 0 256px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: linear-gradient(155deg, rgba(15, 118, 110, 0.28), rgba(15, 23, 42, 0.55));
+  border: 1px solid rgba(94, 234, 212, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 20px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.pulse-card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pulse-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #5eead4;
+  box-shadow: 0 0 8px #5eead4;
+  animation: cfp-live-blink 2.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.pulse-card-title {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #99f6e4;
+  white-space: nowrap;
+}
+
+.pulse-svg-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pulse-svg {
+  width: 100%;
+  height: 82px;
+  display: block;
+}
+
+.cfp-flow-ring {
+  transform-origin: 110px 48px;
+  animation: cfp-spin 16s linear infinite;
+}
+
+.cfp-orbit-a {
+  transform-origin: 110px 48px;
+  animation: cfp-spin 9s linear infinite;
+}
+
+.cfp-orbit-b {
+  transform-origin: 110px 48px;
+  animation: cfp-spin-rev 12s linear infinite;
+}
+
+.cfp-core-halo {
+  transform-origin: 110px 48px;
+  animation: cfp-halo-pulse 3s ease-in-out infinite;
+}
+
+.pulse-card-foot {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  font-size: 0.64rem;
+  letter-spacing: 0.05em;
+  color: rgba(203, 213, 225, 0.85);
+}
+
+@keyframes cfp-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes cfp-spin-rev {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes cfp-halo-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.7; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
+@keyframes cfp-live-blink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.82); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cfp-flow-ring,
+  .cfp-orbit-a,
+  .cfp-orbit-b,
+  .cfp-core-halo,
+  .pulse-live-dot {
+    animation: none;
+  }
 }
 
 .brand {
@@ -153,20 +270,6 @@ body {
   font-size: 0.78rem;
   color: #99f6e4;
   opacity: 0.92;
-}
-
-.btn-hub-link {
-  text-decoration: none;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.icon-xs {
-  width: 13px;
-  height: 13px;
-  flex-shrink: 0;
 }
 
 .footer-badge-row {
@@ -1069,6 +1172,12 @@ hao-element-badge {
 
   .filter-grid-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .header-pulse-card {
+    display: none;
   }
 }
 

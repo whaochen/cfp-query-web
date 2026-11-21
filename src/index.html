@@ -16,59 +16,98 @@
     <!-- 頂部導覽與資料狀態列 -->
     <header class="top-header">
       <div class="container header-inner">
-        <div class="brand">
-          <a
-            href="https://hao-element-matrix.pages.dev/"
-            class="element-badge"
-            title="返回晧脈元素庫"
-            aria-label="返回晧脈元素庫"
-          >
-            <span class="element-num">06</span>
-            <span class="element-symbol">C</span>
-            <span class="element-name">Carbon</span>
-          </a>
-          <div class="brand-text">
-            <h1>台灣環境部碳足跡查詢系統</h1>
-            <p class="subtitle">晧脈元素庫 · 環境部 CFP_P_02 &amp; CFP_P_01</p>
+        <div class="header-left">
+          <div class="brand">
+            <a
+              href="https://hao-element-matrix.pages.dev/"
+              class="element-badge"
+              title="返回晧脈元素庫"
+              aria-label="返回晧脈元素庫"
+            >
+              <span class="element-num">06</span>
+              <span class="element-symbol">C</span>
+              <span class="element-name">Carbon</span>
+            </a>
+            <div class="brand-text">
+              <h1>台灣環境部碳足跡查詢系統</h1>
+              <p class="subtitle">晧脈元素庫 · 環境部 CFP_P_02 &amp; CFP_P_01</p>
+            </div>
+          </div>
+
+          <div class="status-bar" aria-live="polite">
+            <div class="status-pill">
+              <span class="status-label">排放係數 (CFP_P_02)</span>
+              <strong id="stat-factors-count" class="mono">--</strong>
+            </div>
+            <div class="status-pill">
+              <span class="status-label">碳標籤產品 (CFP_P_01)</span>
+              <strong id="stat-products-count" class="mono">--</strong>
+            </div>
+            <div class="status-pill">
+              <span class="status-label">最後同步時間</span>
+              <strong id="stat-last-sync" class="mono">載入中...</strong>
+            </div>
+            <button id="btn-open-changelog" type="button" class="btn btn-outline btn-sm">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 8v4l3 3" />
+                <circle cx="12" cy="12" r="9" />
+              </svg>
+              更新紀錄
+            </button>
+            <hao-element-badge symbol="C" theme="dark"></hao-element-badge>
           </div>
         </div>
 
-        <div class="status-bar" aria-live="polite">
-          <div class="status-pill">
-            <span class="status-label">排放係數 (CFP_P_02)</span>
-            <strong id="stat-factors-count" class="mono">--</strong>
+        <aside class="header-pulse-card" aria-hidden="true">
+          <div class="pulse-card-head">
+            <span class="pulse-live-dot"></span>
+            <span class="pulse-card-title mono">ISO 14067 · CFP LIVE PULSE</span>
           </div>
-          <div class="status-pill">
-            <span class="status-label">碳標籤產品 (CFP_P_01)</span>
-            <strong id="stat-products-count" class="mono">--</strong>
-          </div>
-          <div class="status-pill">
-            <span class="status-label">最後同步時間</span>
-            <strong id="stat-last-sync" class="mono">載入中...</strong>
-          </div>
-          <button id="btn-open-changelog" type="button" class="btn btn-outline btn-sm">
-            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 8v4l3 3" />
-              <circle cx="12" cy="12" r="9" />
+          <div class="pulse-svg-wrap">
+            <svg class="pulse-svg" viewBox="0 0 220 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <radialGradient id="cfpCoreGlow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#5eead4" stop-opacity="0.45" />
+                  <stop offset="100%" stop-color="#14b8a6" stop-opacity="0" />
+                </radialGradient>
+                <linearGradient id="cfpOrbitStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#5eead4" stop-opacity="0.9" />
+                  <stop offset="50%" stop-color="#2dd4bf" stop-opacity="0.25" />
+                  <stop offset="100%" stop-color="#99f6e4" stop-opacity="0.85" />
+                </linearGradient>
+              </defs>
+
+              <!-- 生命週期環流虛線軌 -->
+              <circle cx="110" cy="48" r="41" stroke="rgba(94, 234, 212, 0.2)" stroke-width="1" stroke-dasharray="3 4" />
+              <g class="cfp-flow-ring">
+                <circle cx="110" cy="48" r="41" stroke="url(#cfpOrbitStroke)" stroke-width="1.35" stroke-dasharray="28 100 18 112" stroke-linecap="round" />
+                <circle cx="110" cy="7" r="2.6" fill="#5eead4" />
+                <circle cx="151" cy="48" r="2.2" fill="#99f6e4" />
+                <circle cx="110" cy="89" r="2.2" fill="#2dd4bf" />
+                <circle cx="69" cy="48" r="2.4" fill="#5eead4" />
+              </g>
+
+              <!-- 碳原子雙軌道旋轉 -->
+              <g class="cfp-orbit-a">
+                <ellipse cx="110" cy="48" rx="32" ry="13" stroke="rgba(94, 234, 212, 0.65)" stroke-width="1.2" transform="rotate(-24 110 48)" />
+                <circle cx="139" cy="35" r="2.5" fill="#99f6e4" />
+              </g>
+              <g class="cfp-orbit-b">
+                <ellipse cx="110" cy="48" rx="32" ry="13" stroke="rgba(45, 212, 191, 0.55)" stroke-width="1.2" transform="rotate(32 110 48)" />
+                <circle cx="83" cy="65" r="2.5" fill="#5eead4" />
+              </g>
+
+              <!-- 核心光暈與 C 原子核 -->
+              <circle cx="110" cy="48" r="22" fill="url(#cfpCoreGlow)" class="cfp-core-halo" />
+              <circle cx="110" cy="48" r="11.5" fill="rgba(15, 23, 42, 0.85)" stroke="#5eead4" stroke-width="1.4" />
+              <text x="110" y="52.5" text-anchor="middle" fill="#ecfdf5" font-size="12" font-weight="700" font-family="JetBrains Mono, monospace">C</text>
             </svg>
-            更新紀錄
-          </button>
-          <a
-            id="btn-back-hub"
-            href="https://hao-element-matrix.pages.dev/"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="btn btn-outline btn-sm btn-hub-link"
-          >
-            <span>✦ 返回晧脈元素庫</span>
-            <svg class="icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </a>
-          <hao-element-badge symbol="C" theme="dark"></hao-element-badge>
-        </div>
+          </div>
+          <div class="pulse-card-foot mono">
+            <span>LCA 5-STAGE</span>
+            <span>CO₂e TRACE</span>
+          </div>
+        </aside>
       </div>
     </header>
 
