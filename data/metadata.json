@@ -1,23 +1,21 @@
 {
-  "last_checked_at": "2026-11-20T13:27:01+08:00",
+  "last_checked_at": "2026-11-23T17:55:16+08:00",
   "datasets": {
     "CFP_P_02": {
       "title": "碳足跡排放係數",
       "source_url": "https://data.moenv.gov.tw/dataset/detail/CFP_P_02",
       "file": "cfp_factors.json",
       "total_count": 1188,
-      "last_synced_at": "2026-11-19T00:04:44+08:00",
-      "sha256": "8f30d01c1a9c47b257c200d4d86fe5976fb99b6692b9b632aaa7097e139b2a3c",
-      "details_count": 1184
+      "last_synced_at": "2026-11-23T17:55:16+08:00",
+      "sha256": "8f30d01c1a9c47b257c200d4d86fe5976fb99b6692b9b632aaa7097e139b2a3c"
     },
     "CFP_P_01": {
       "title": "台灣產品碳足跡資訊",
       "source_url": "https://data.moenv.gov.tw/dataset/detail/CFP_P_01",
       "file": "cfp_products.json",
-      "total_count": 2191,
-      "last_synced_at": "2026-11-19T00:04:44+08:00",
-      "sha256": "ca11405b5becc8230d57affadbe9944df83d69951af50c67bd5f312c200ce5da",
-      "details_count": 2189
+      "total_count": 953,
+      "last_synced_at": "2026-11-23T17:55:16+08:00",
+      "sha256": "ca11405b5becc8230d57affadbe9944df83d69951af50c67bd5f312c200ce5da"
     }
   }
 }
